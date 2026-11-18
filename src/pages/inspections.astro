@@ -1,0 +1,41 @@
+---
+import Base from '../layouts/Base.astro';
+import Status from '../components/Status.astro';
+import { recentFlagged } from '../lib/db';
+import { env, fmtDate } from '../lib/util';
+const r = await recentFlagged(env(Astro.locals).DB, 14, 200);
+const total = Object.values(r.tones).reduce((a, b) => a + b, 0);
+const byDate = new Map<string, typeof r.items>();
+for (const i of r.items) { const k = i.date; byDate.set(k, [...(byDate.get(k) ?? []), i]); }
+Astro.response.headers.set('Cache-Control', 'public, max-age=600');
+---
+<Base title="Broward restaurant inspection report" description="Every Broward County restaurant warning and emergency order from the last two weeks of Florida DBPR inspection records, updated weekly." search>
+  <div class="wrap stack-lg">
+    <header class="stack" style="max-width:760px">
+      <p class="label">Updated weekly from state records</p>
+      <h1>Broward inspection report</h1>
+      <p>Every food service inspection in Broward since {fmtDate(r.since)} that ended in a warning, call-back or emergency order, in the state's own words. Most inspections end with no further action; those are counted below but not listed.</p>
+    </header>
+    <div class="stats">
+      <div class="stat"><b>{total.toLocaleString()}</b><span>Inspections in the period</span></div>
+      <div class="stat"><b>{(r.tones.ok ?? 0).toLocaleString()}</b><span>No further action or complied</span></div>
+      <div class="stat"><b>{(r.tones.warn ?? 0).toLocaleString()}</b><span>Warnings and call-backs</span></div>
+      <div class="stat"><b>{(r.tones.alert ?? 0).toLocaleString()}</b><span>Emergency orders</span></div>
+    </div>
+    {[...byDate.entries()].map(([date, items]) => (
+      <section class="stack">
+        <h2 class="record" style="font-size:16px">{fmtDate(date)}</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Business</th><th>City</th><th>Result</th><th class="num">High priority</th></tr></thead>
+            <tbody>{items.map((i) => (
+              <tr><td><a href={`/business/${i.slug}`}>{i.name}</a></td><td class="small">{i.city}</td><td><Status tone={i.tone} text={i.disposition} /></td><td class="num">{i.high_priority ?? '—'}</td></tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </section>
+    ))}
+    {r.items.length === 0 && <p class="notice">No warnings or emergency orders in this period's records.</p>}
+    <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants, food service inspection data. A warning means the inspector found violations to be corrected, usually checked at a call-back visit. An emergency order closes a business until it passes a follow-up inspection. Records can lag behind corrections; see each listing for its full history.</p>
+  </div>
+</Base>

@@ -1,0 +1,66 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env, fmtDate } from '../../lib/util';
+import { CATEGORIES, CITY_NAMES } from '../../lib/shared';
+const db = env(Astro.locals).DB;
+const id = Number(Astro.url.searchParams.get('id') ?? 0);
+const b: any = id ? await db.prepare(`SELECT * FROM businesses WHERE id = ?`).bind(id).first() : null;
+const mentions = b ? (await db.prepare(`SELECT * FROM mentions WHERE business_id = ? ORDER BY published_on DESC`).bind(b.id).all<any>()).results : [];
+const v = (k: string) => (b?.[k] ?? '') as string;
+---
+<Base title={b ? `Edit ${b.name}` : 'Add a listing'} noindex>
+  <div class="wrap stack-lg" style="max-width:820px">
+    <p><a href="/admin">← Admin</a>{b && <> · <a href={`/business/${b.slug}`}>View public page</a></>}</p>
+    <h1>{b ? b.name : 'Add a listing'}</h1>
+    {b?.source === 'dbpr' && <p class="notice">Name, address and license fields on state-record listings are refreshed by the weekly import. Edit contact details, description and category here.</p>}
+    <form method="post" action="/api/admin/action" class="panel stack">
+      <input type="hidden" name="action" value="business_save" />
+      <input type="hidden" name="id" value={b?.id ?? ''} />
+      <label class="field"><span>Name</span><input name="name" required value={v('name')} /></label>
+      <label class="field"><span>Category</span><select name="category">{CATEGORIES.map((c) => <option value={c.slug} selected={c.slug === v('category')}>{c.label}</option>)}</select></label>
+      <label class="field"><span>Type label</span><input name="subtype" value={v('subtype')} placeholder="e.g. Window tint and PPF" /></label>
+      <label class="field"><span>Street address</span><input name="address" value={v('address')} /></label>
+      <label class="field"><span>City</span><select name="city_slug"><option value="">—</option>{Object.entries(CITY_NAMES).map(([s, n]) => <option value={s} selected={s === v('city_slug')}>{n}</option>)}</select></label>
+      <label class="field"><span>ZIP</span><input name="zip" value={v('zip')} /></label>
+      <label class="field"><span>Public business phone</span><input name="phone" value={v('phone')} /><small>Only a number the business publishes. The state-record phone stays private.</small></label>
+      <label class="field"><span>Website</span><input name="website" value={v('website')} /></label>
+      <label class="field"><span>Facebook</span><input name="facebook" value={v('facebook')} /></label>
+      <label class="field"><span>Instagram</span><input name="instagram" value={v('instagram')} /></label>
+      <label class="field"><span>Hours</span><textarea name="hours">{v('hours')}</textarea></label>
+      <label class="field"><span>Description</span><textarea name="description">{v('description')}</textarea></label>
+      <label class="field"><span>Status</span><select name="status">{['active', 'pending', 'hidden'].map((s) => <option selected={s === (v('status') || 'active')}>{s}</option>)}</select></label>
+      {b && <label class="field"><span>Owner email (gets the owner link)</span><input name="owner_email" value={v('owner_email')} /></label>}
+      <button class="btn btn-primary">{b ? 'Save listing' : 'Create listing'}</button>
+    </form>
+    {b && <>
+      <section class="stack">
+        <h2>Owner access</h2>
+        {b.owner_token ? <p class="small">Owner page: <span class="record">/owner/{b.owner_token}</span></p> : <p class="small muted">No owner link yet.</p>}
+        <form method="post" action="/api/admin/action" class="row-actions">
+          <input type="hidden" name="action" value="owner_link" /><input type="hidden" name="id" value={b.id} />
+          <button class="btn btn-sm">{b.owner_token ? 'Make a new owner link and email it' : 'Mark claimed and email owner link'}</button>
+        </form>
+      </section>
+      <section class="stack">
+        <h2>Around the web</h2>
+        <p class="small muted">Add news stories, Reddit threads or other public mentions you've read. Write the summary in your own words; never paste their text.</p>
+        {mentions.map((m: any) => (
+          <div class="panel">
+            <p><a href={m.url} target="_blank" rel="noopener">{m.title}</a> · {m.source} {m.published_on && `· ${fmtDate(m.published_on)}`}</p>
+            {m.summary && <p class="small">{m.summary}</p>}
+            <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="mention_delete" /><input type="hidden" name="id" value={m.id} /><input type="hidden" name="business_id" value={b.id} /><button class="btn btn-sm">Remove</button></form>
+          </div>
+        ))}
+        <form method="post" action="/api/admin/action" class="panel stack">
+          <input type="hidden" name="action" value="mention_add" /><input type="hidden" name="business_id" value={b.id} />
+          <label class="field"><span>Title</span><input name="title" required /></label>
+          <label class="field"><span>Link</span><input name="url" type="url" required /></label>
+          <label class="field"><span>Source (e.g. Sun Sentinel, r/fortlauderdale)</span><input name="source" required /></label>
+          <label class="field"><span>Date</span><input name="published_on" type="date" /></label>
+          <label class="field"><span>Summary in your words</span><textarea name="summary" maxlength="400"></textarea></label>
+          <button class="btn btn-sm btn-primary">Add mention</button>
+        </form>
+      </section>
+    </>}
+  </div>
+</Base>

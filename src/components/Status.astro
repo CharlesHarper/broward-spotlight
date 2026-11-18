@@ -1,0 +1,8 @@
+---
+import Icon from './Icon.astro';
+import type { Tone } from '../lib/shared';
+interface Props { tone?: Tone | null; text?: string | null }
+const { tone = 'neutral', text } = Astro.props;
+const t = (tone ?? 'neutral') as Tone;
+---
+{text && <span class={`status status-${t}`}><Icon name={t} /><span>{text}</span></span>}

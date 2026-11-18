@@ -1,0 +1,105 @@
+---
+import '../styles/global.css';
+import SearchBar from '../components/SearchBar.astro';
+interface Props {
+  title: string;
+  description?: string;
+  canonical?: string;
+  noindex?: boolean;
+  search?: boolean;
+  q?: string;
+  city?: string | null;
+  jsonld?: object | null;
+}
+const { title, description = 'Broward County businesses on the record: state inspections, licenses, verified owners and real customer reviews.', canonical, noindex = false, search = false, q = '', city = null, jsonld = null } = Astro.props;
+const site = Astro.locals.runtime?.env?.SITE_URL ?? 'https://browardspotlight.com';
+const canon = canonical ?? new URL(Astro.url.pathname, site).toString();
+const fullTitle = title === 'Broward Spotlight' ? title : `${title} | Broward Spotlight`;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{fullTitle}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={canon} />
+  {noindex && <meta name="robots" content="noindex" />}
+  <meta property="og:title" content={fullTitle} />
+  <meta property="og:description" content={description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={canon} />
+  <meta name="theme-color" content="#0F2A33" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,600..800&family=IBM+Plex+Mono:wght@500&family=Public+Sans:wght@400;600;700&display=swap" />
+  {jsonld && <script type="application/ld+json" set:html={JSON.stringify(jsonld)} />}
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand-lockup" href="/" aria-label="Broward Spotlight home">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0F2A33" stroke="#E6EEEE" stroke-opacity=".25"/><path d="M10 54 L40 15 L51 26 Z" fill="#FFC72C"/><circle cx="46" cy="20" r="8" fill="#FFC72C"/><circle cx="46" cy="20" r="3.2" fill="#0F2A33"/></svg>
+        <span>Broward Spotlight</span>
+      </a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/cities">Cities</a>
+        <a href="/categories">Categories</a>
+        <a href="/inspections">Inspection report</a>
+        <a href="/add-business">Add a business</a>
+        <a href="/advertise">Advertise</a>
+      </nav>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu" id="menu-btn">Menu</button>
+    </div>
+    <div class="menu-panel" id="menu" hidden>
+      <nav class="wrap" aria-label="Main mobile">
+        <a href="/cities">Cities</a>
+        <a href="/categories">Categories</a>
+        <a href="/inspections">Inspection report</a>
+        <a href="/add-business">Add a business</a>
+        <a href="/advertise">Advertise</a>
+        <a href="/how-it-works">How we work</a>
+      </nav>
+    </div>
+  </header>
+  {search && <SearchBar q={q} city={city} />}
+  <main>
+    <slot />
+  </main>
+  <footer class="site-foot">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div class="stack">
+          <span class="brand-lockup"><span>Broward Spotlight</span></span>
+          <p class="small">Every Broward business, on the record. Inspection and license data come from Florida public records. Paid placement is always labeled and never changes a record or hides a review.</p>
+        </div>
+        <nav aria-label="Directory">
+          <a href="/cities">Browse by city</a>
+          <a href="/categories">Browse by category</a>
+          <a href="/inspections">Weekly inspection report</a>
+          <a href="/search">Search</a>
+        </nav>
+        <nav aria-label="Business owners">
+          <a href="/add-business">Add your business</a>
+          <a href="/advertise">Advertise</a>
+          <a href="/how-it-works">How we work</a>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+        </nav>
+      </div>
+      <p class="fine">Broward Spotlight is independent and is not affiliated with the Florida Department of Business and Professional Regulation or any government agency. Records can lag behind real-world fixes; always check the official source linked on each listing.</p>
+    </div>
+  </footer>
+  <script>
+    const b = document.getElementById('menu-btn');
+    const m = document.getElementById('menu');
+    b?.addEventListener('click', () => {
+      const open = b.getAttribute('aria-expanded') === 'true';
+      b.setAttribute('aria-expanded', String(!open));
+      if (m) m.hidden = open;
+    });
+    document.querySelectorAll<HTMLInputElement>('input[name="t"]').forEach((i) => (i.value = String(Date.now())));
+  </script>
+</body>
+</html>

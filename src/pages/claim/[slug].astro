@@ -1,0 +1,32 @@
+---
+import Base from '../../layouts/Base.astro';
+import BotFields from '../../components/BotFields.astro';
+import { getBusiness } from '../../lib/db';
+import { env } from '../../lib/util';
+const b = await getBusiness(env(Astro.locals).DB, Astro.params.slug!);
+if (!b) return Astro.rewrite('/404');
+---
+<Base title={`Claim ${b.name}`} noindex>
+  <div class="wrap stack-lg" style="max-width:680px">
+    <header class="stack">
+      <p class="label">Free for every business</p>
+      <h1>Claim {b.name}</h1>
+      <p>Once you're verified you can add your website, hours, photos, description and social links, and reply to reviews. You'll get an Owner verified badge.</p>
+    </header>
+    {b.claimed ? <p class="notice">This listing has already been claimed. If that's a mistake, <a href={`/correction/${b.slug}`}>tell us</a>.</p> : (
+      <form method="post" action="/api/claim" class="panel stack">
+        <input type="hidden" name="slug" value={b.slug} />
+        <BotFields />
+        <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
+        <label class="field"><span>Your role</span>
+          <select name="role" required><option value="">Choose one</option><option>Owner</option><option>Manager</option><option>Marketing or agency</option></select>
+        </label>
+        <label class="field"><span>Work email</span><input name="email" type="email" required autocomplete="email" /><small>An email at the business's own website domain gets verified fastest.</small></label>
+        <label class="field"><span>Phone</span><input name="phone" type="tel" required autocomplete="tel" /></label>
+        <label class="field"><span>Anything we should know? (optional)</span><textarea name="note" maxlength="1000"></textarea></label>
+        <p class="small muted">How we verify: we call or email the business at its listed public number or address to confirm you. Claiming is free, and it never removes reviews or changes state records.</p>
+        <button class="btn btn-primary" type="submit">Send my claim</button>
+      </form>
+    )}
+  </div>
+</Base>

@@ -1,0 +1,25 @@
+---
+import type { Business } from '../lib/db';
+import Status from './Status.astro';
+import Icon from './Icon.astro';
+import { fmtDate } from '../lib/util';
+interface Props { b: Business; featured?: boolean }
+const { b, featured = false } = Astro.props;
+---
+<a class:list={['card', { 'is-featured': featured }]} href={`/business/${b.slug}`}>
+  {(featured || b.claimed || b.source === 'dbpr' || b.btr_account) && (
+    <div class="badges">
+      {featured && <span class="badge badge-featured">Featured</span>}
+      {b.claimed ? <span class="badge badge-verified"><Icon name="check" />Owner verified</span> : null}
+      {(b.source === 'dbpr' || b.btr_account) && <span class="badge badge-record">Public record</span>}
+    </div>
+  )}
+  <h3>{b.name}</h3>
+  <p class="meta">{[b.subtype, b.city].filter(Boolean).join(' · ')}</p>
+  {b.last_inspection_disposition && (
+    <div class="foot">
+      <Status tone={b.last_inspection_tone} text={b.last_inspection_disposition} />
+      <span class="record muted">{fmtDate(b.last_inspection_date)}</span>
+    </div>
+  )}
+</a>

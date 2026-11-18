@@ -1,0 +1,10 @@
+---
+interface Props { ad: { advertiser: string; image_url: string; link_url: string; alt: string } | null }
+const { ad } = Astro.props;
+---
+{ad && (
+  <aside class="ad" aria-label="Advertisement">
+    <span class="label">Advertisement · {ad.advertiser}</span>
+    <a href={ad.link_url} rel="sponsored noopener" target="_blank"><img src={ad.image_url} alt={ad.alt} loading="lazy" /></a>
+  </aside>
+)}

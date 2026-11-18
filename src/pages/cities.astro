@@ -1,0 +1,20 @@
+---
+import Base from '../layouts/Base.astro';
+import { cityCounts } from '../lib/db';
+import { env } from '../lib/util';
+const cities = await cityCounts(env(Astro.locals).DB);
+Astro.response.headers.set('Cache-Control', 'public, max-age=600');
+---
+<Base title="Broward County cities" description="Browse local businesses in all 31 Broward County cities, with state inspection records and reviews." search>
+  <div class="wrap stack-lg">
+    <header class="stack"><h1>Broward's 31 cities</h1><p class="muted">Pick a city to see its businesses, recent state inspections and local numbers.</p></header>
+    <div class="grid">
+      {cities.map((c) => (
+        <a class="card" href={`/city/${c.slug}`}>
+          <h3>{c.name}</h3>
+          <p class="meta">{c.n > 0 ? `${c.n.toLocaleString()} listings` : 'Listings coming soon'}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>

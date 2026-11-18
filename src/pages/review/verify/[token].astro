@@ -1,0 +1,18 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { env } from '../../../lib/util';
+const e = env(Astro.locals);
+const r = await e.DB.prepare(`UPDATE reviews SET email_verified = 1 WHERE verify_token = ? RETURNING business_id`).bind(Astro.params.token).first<{ business_id: number }>();
+const biz = r ? await e.DB.prepare(`SELECT name, slug FROM businesses WHERE id = ?`).bind(r.business_id).first<{ name: string; slug: string }>() : null;
+---
+<Base title="Review confirmed" noindex>
+  <div class="wrap stack" style="max-width:640px">
+    {biz ? <>
+      <h1>Thanks, your review is confirmed</h1>
+      <p>It goes live on <a href={`/business/${biz.slug}`}>{biz.name}</a> once it passes our quick policy check, usually within a day.</p>
+    </> : <>
+      <h1>That link didn't work</h1>
+      <p>It may have been used already. If your review isn't showing after a day, write to us from the <a href="/how-it-works">How we work</a> page.</p>
+    </>}
+  </div>
+</Base>

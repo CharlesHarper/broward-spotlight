@@ -1,0 +1,187 @@
+---
+import Base from '../../layouts/Base.astro';
+import Status from '../../components/Status.astro';
+import Icon from '../../components/Icon.astro';
+import BotFields from '../../components/BotFields.astro';
+import { getBusiness, businessDetail } from '../../lib/db';
+import { categoryLabel, CITY_NAMES, titleCase } from '../../lib/shared';
+import { env, fmtDate, fmtPhone, telHref, mapsUrl } from '../../lib/util';
+
+const e = env(Astro.locals);
+const b = await getBusiness(e.DB, Astro.params.slug!);
+if (!b) return Astro.rewrite('/404');
+const d = await businessDetail(e.DB, b);
+const msg = Astro.url.searchParams.get('sent');
+const cityName = b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : b.city;
+const stars = (n: number) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+const q = encodeURIComponent(`"${b.name}" ${cityName ?? ''} FL`);
+const webLinks = [
+  { label: 'News coverage', href: `https://news.google.com/search?q=${q}` },
+  { label: 'Reddit discussions', href: `https://www.reddit.com/search/?q=${q}` },
+  { label: 'Florida business registration (Sunbiz)', href: `https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm=${encodeURIComponent(b.license_holder ?? b.name)}` },
+];
+const showStreet = !!b.address && (!b.hide_street || !!b.claimed);
+const isFood = b.category === 'restaurants' || b.category === 'food-trucks';
+const schemaType = b.category === 'restaurants' ? 'Restaurant' : b.category === 'food-trucks' ? 'FoodEstablishment' : b.category === 'beauty' ? 'HealthAndBeautyBusiness' : b.category === 'auto' ? 'AutomotiveBusiness' : b.category === 'home-services' ? 'HomeAndConstructionBusiness' : b.category === 'professional' ? 'ProfessionalService' : 'LocalBusiness';
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@type': schemaType,
+  name: b.name,
+  url: new URL(`/business/${b.slug}`, e.SITE_URL).toString(),
+  ...(cityName ? { address: { '@type': 'PostalAddress', streetAddress: showStreet ? b.address : undefined, addressLocality: cityName, addressRegion: 'FL', postalCode: b.zip ?? undefined, addressCountry: 'US' } } : {}),
+  ...(b.phone ? { telephone: b.phone } : {}),
+  ...(b.website || b.facebook || b.instagram ? { sameAs: [b.website, b.facebook, b.instagram].filter(Boolean) } : {}),
+};
+const desc = `${b.name} in ${cityName}, FL: ${b.last_inspection_disposition ? `latest state inspection ${fmtDate(b.last_inspection_date)} (${b.last_inspection_disposition}), ` : ''}license record, reviews and contact details.`;
+const thin = b.source === 'county' && !b.claimed && !b.description && d.reviewStats.n === 0 && d.mentions.length === 0;
+Astro.response.headers.set('Cache-Control', 'public, max-age=120');
+---
+<Base title={`${b.name}, ${cityName}`} description={desc} search city={b.city_slug} jsonld={jsonld} noindex={thin}>
+  <div class="wrap">
+    {msg === 'review' && <p class="notice notice-ok" role="status">Thanks. Your review is in. Check your email to confirm it; we post it once it passes our review policy check.</p>}
+    {msg === 'claim' && <p class="notice notice-ok" role="status">Claim received. We verify every owner by contacting the business directly, usually within two business days.</p>}
+    {b.status === 'inactive' && <p class="notice notice-warn" role="status">This location no longer appears on the state's list of active food service licenses. It may have closed, moved or changed owners. Its records are kept here for reference.</p>}
+    {msg === 'correction' && <p class="notice notice-ok" role="status">Thanks. We'll check that against the source and update the listing if it's wrong.</p>}
+
+    <header class="biz-head" style="margin-top:8px">
+      <div class="badges">
+        {b.claimed ? <span class="badge badge-verified"><Icon name="check" />Owner verified</span> : null}
+        {(b.source === 'dbpr' || b.btr_account) && <span class="badge badge-record">Public record</span>}
+      </div>
+      <h1>{b.name}</h1>
+      <p class="muted">{[b.subtype ?? categoryLabel(b.category), cityName].filter(Boolean).join(' · ')}{d.reviewStats.n > 0 && <> · <span class="stars" aria-label={`${d.reviewStats.avg} out of 5`}>{stars(Math.round(d.reviewStats.avg ?? 0))}</span> {d.reviewStats.avg} ({d.reviewStats.n})</>}</p>
+      {showStreet ? <p class="small">{b.address}, {cityName}, FL {b.zip}</p> : <p class="small">{cityName}, FL {b.zip}</p>}
+      <div class="biz-actions">
+        {b.phone && <a class="btn btn-primary" href={telHref(b.phone)}><Icon name="phone" />{fmtPhone(b.phone)}</a>}
+        {b.website && <a class="btn" href={b.website} target="_blank" rel="noopener"><Icon name="globe" />Website</a>}
+        {(showStreet || b.lat) && <a class="btn" href={showStreet ? mapsUrl(b.name, b.address, cityName) : mapsUrl(b.name, null, cityName)} target="_blank" rel="noopener"><Icon name="map" />Directions</a>}
+        <a class="btn" href="#write-review">Write a review</a>
+      </div>
+    </header>
+
+    <div class="biz-layout">
+      <div class="stack-lg">
+        {b.description && (
+          <section class="stack">
+            <h2>About</h2>
+            <p style="max-width:65ch;white-space:pre-line">{b.description}</p>
+            {b.claimed ? <p class="small muted">Written by the business owner.</p> : null}
+          </section>
+        )}
+
+        {isFood && (
+          <section class="stack" id="inspections">
+            <div class="section-head" style="margin:0">
+              <h2>State inspection history</h2>
+              <span class="label">Public record</span>
+            </div>
+            {d.inspections.length ? (
+              <>
+                <ul class="insp-list">
+                  {d.inspections.map((i) => (
+                    <li>
+                      <div class="insp-top"><span class="record">{fmtDate(i.date)}</span><span class="small muted">{i.type}</span></div>
+                      <div><Status tone={i.tone} text={i.disposition} /></div>
+                      {(i.total_violations !== null || i.high_priority !== null) && (
+                        <div class="insp-counts">
+                          <span>High priority <b>{i.high_priority ?? 0}</b></span>
+                          <span>Intermediate <b>{i.intermediate ?? 0}</b></span>
+                          <span>Basic <b>{i.basic ?? 0}</b></span>
+                          <span>Total <b>{i.total_violations ?? 0}</b></span>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants. Results are shown in the state's own words. A violation noted on inspection day may have been corrected on the spot or at a later call-back. <a href="https://www2.myfloridalicense.com/hotels-restaurants/public-records/" target="_blank" rel="noopener">Official records</a>.</p>
+              </>
+            ) : <p class="notice">No state inspections on file for this location in the records we've imported.</p>}
+          </section>
+        )}
+
+        <section class="stack" id="reviews">
+          <h2>Customer reviews</h2>
+          {d.reviews.length ? (
+            <div>
+              {d.reviews.map((r) => (
+                <article class="review">
+                  <div><span class="stars" aria-label={`${r.rating} out of 5`}>{stars(r.rating)}</span></div>
+                  <p style="white-space:pre-line">{r.body}</p>
+                  <p class="small muted">{r.name} · {fmtDate(r.created_at)}</p>
+                  {r.owner_response && <div class="owner-reply"><p class="label" style="margin-bottom:4px">Response from the owner</p><p style="white-space:pre-line">{r.owner_response}</p></div>}
+                </article>
+              ))}
+            </div>
+          ) : <p class="muted">No reviews yet. Be the first.</p>}
+          <p class="small muted">We post every genuine review, positive or negative. <a href="/how-it-works#reviews">Review policy</a>.</p>
+        </section>
+
+        <section class="panel" id="write-review">
+          <h2>Write a review</h2>
+          <form method="post" action="/api/review" class="stack">
+            <input type="hidden" name="business_id" value={b.id} />
+            <input type="hidden" name="slug" value={b.slug} />
+            <BotFields />
+            <fieldset class="field" style="border:0;padding:0;margin:0">
+              <legend style="font-weight:600;font-size:15px;margin-bottom:6px">Your rating</legend>
+              <div class="chips">
+                {[5, 4, 3, 2, 1].map((n) => <label class="chip"><input type="radio" name="rating" value={n} required style="width:auto;min-height:0" /> {n} {n === 1 ? 'star' : 'stars'}</label>)}
+              </div>
+            </fieldset>
+            <label class="field"><span>Your review</span><textarea name="body" required minlength="30" maxlength="3000" placeholder="What happened on your visit? Specifics help other customers."></textarea></label>
+            <label class="field"><span>Name to show</span><input name="name" required maxlength="60" autocomplete="name" /></label>
+            <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" /><small>Used once to confirm your review. Never shown.</small></label>
+            <label class="check"><input type="checkbox" name="certify" required /> I was a real customer, and I don't work for, own, or have a family or business tie to this business or a competitor.</label>
+            <button class="btn btn-primary" type="submit">Submit review</button>
+          </form>
+        </section>
+      </div>
+
+      <aside class="biz-side stack">
+        <section class="panel">
+          <h2 style="font-size:18px">On the record</h2>
+          <dl class="kv">
+            {b.dbpr_license && <><dt>State license</dt><dd class="record">{b.dbpr_license}</dd></>}
+            {b.license_holder && <><dt>License holder</dt><dd>{b.license_holder}</dd></>}
+            {b.btr_account && <><dt>County business tax</dt><dd>On file with Broward County</dd></>}
+            {b.btr_category && <><dt>County category</dt><dd>{titleCase(b.btr_category)}</dd></>}
+            {b.started_on && <><dt>In business since</dt><dd class="record">{fmtDate(b.started_on)}</dd></>}
+            {b.license_expires && <><dt>License expires</dt><dd class="record">{fmtDate(b.license_expires)}</dd></>}
+            {b.seats ? <><dt>Seats</dt><dd class="record">{b.seats}</dd></> : null}
+            {b.last_inspection_date && <><dt>Last inspected</dt><dd class="record">{fmtDate(b.last_inspection_date)}</dd></>}
+            {b.hours && <><dt>Hours</dt><dd style="white-space:pre-line">{b.hours}</dd></>}
+            {b.facebook && <><dt>Facebook</dt><dd><a href={b.facebook} target="_blank" rel="noopener">Page</a></dd></>}
+            {b.instagram && <><dt>Instagram</dt><dd><a href={b.instagram} target="_blank" rel="noopener">Profile</a></dd></>}
+          </dl>
+          {b.btr_account && <p class="small muted">Source: Broward County Local Business Tax records.</p>}
+          {b.dbpr_license && <a class="small" href="https://www.myfloridalicense.com/wl11.asp?mode=0" target="_blank" rel="noopener">Verify this license with the state</a>}
+        </section>
+
+        <section class="panel">
+          <h2 style="font-size:18px">Around the web</h2>
+          {d.mentions.length > 0 && (
+            <ul style="margin:0;padding-left:18px;display:grid;gap:10px">
+              {d.mentions.map((m) => (
+                <li class="small"><a href={m.url} target="_blank" rel="noopener nofollow">{m.title}</a> <span class="muted">· {m.source}{m.published_on ? `, ${fmtDate(m.published_on)}` : ''}</span>{m.summary && <p class="muted" style="margin-top:2px">{m.summary}</p>}</li>
+              ))}
+            </ul>
+          )}
+          <p class="small muted">Search what others say about {b.name}:</p>
+          <ul style="margin:0;padding-left:18px;display:grid;gap:6px" class="small">
+            {webLinks.map((l) => <li><a href={l.href} target="_blank" rel="noopener nofollow">{l.label}</a></li>)}
+          </ul>
+        </section>
+
+        {!b.claimed ? (
+          <section class="panel panel-sunk">
+            <h2 style="font-size:18px">Is this your business?</h2>
+            <p class="small">Claim it free to add your website, hours and photos, and to respond to reviews. Claiming never changes or hides state records.</p>
+            <a class="btn btn-primary" href={`/claim/${b.slug}`}>Claim this listing</a>
+          </section>
+        ) : null}
+
+        <a class="small" href={`/correction/${b.slug}`}>Report a mistake on this page</a>
+      </aside>
+    </div>
+  </div>
+</Base>

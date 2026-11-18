@@ -1,0 +1,25 @@
+{
+  // The public website (Astro on Cloudflare Workers)
+  "name": "broward-spotlight",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "binding": "ASSETS", "directory": "./dist" },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "broward-spotlight",
+      // Paste the id printed by: npx wrangler d1 create broward-spotlight
+      "database_id": "b0960906-88f6-4a53-84ca-241d5b556ebf",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "SITE_URL": "https://browardspotlight.com",
+    "SITE_NAME": "Broward Spotlight"
+  }
+  // Secrets (set with `npx wrangler secret put NAME`):
+  //   ADMIN_PASSWORD   password for /admin (username: admin)
+  //   GHL_WEBHOOK_URL  HighLevel inbound webhook URL for claim, review and advertising events
+}

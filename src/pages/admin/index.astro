@@ -1,0 +1,173 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env, fmtDate } from '../../lib/util';
+import { categoryLabel } from '../../lib/shared';
+const db = env(Astro.locals).DB;
+const tab = Astro.url.searchParams.get('tab') ?? 'queue';
+const msg = Astro.url.searchParams.get('msg');
+const q = Astro.url.searchParams.get('q') ?? '';
+
+const [reviews, claims, pendingBiz, leads, runs, counts] = await db.batch([
+  db.prepare(`SELECT r.*, b.name AS business_name, b.slug AS business_slug FROM reviews r JOIN businesses b ON b.id = r.business_id WHERE r.status = 'pending' ORDER BY r.created_at LIMIT 50`),
+  db.prepare(`SELECT c.*, b.name AS business_name, b.slug AS business_slug, b.record_phone, b.phone AS business_phone, b.website FROM claims c JOIN businesses b ON b.id = c.business_id WHERE c.status = 'pending' ORDER BY c.created_at LIMIT 50`),
+  db.prepare(`SELECT * FROM businesses WHERE status = 'pending' ORDER BY created_at LIMIT 50`),
+  db.prepare(`SELECT * FROM leads WHERE status = 'new' ORDER BY created_at DESC LIMIT 50`),
+  db.prepare(`SELECT * FROM import_runs ORDER BY id DESC LIMIT 6`),
+  db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE status='active') AS biz, (SELECT COUNT(*) FROM businesses WHERE claimed=1) AS claimed, (SELECT COUNT(*) FROM inspections) AS insp, (SELECT COUNT(*) FROM reviews WHERE status='approved') AS reviews, (SELECT COUNT(*) FROM placements WHERE ends_on >= date('now')) AS placements`),
+]);
+const R = reviews.results as any[], C = claims.results as any[], P = pendingBiz.results as any[], L = leads.results as any[], I = runs.results as any[], N = counts.results[0] as any;
+const found = q ? (await db.prepare(`SELECT id, slug, name, city, category, claimed, status FROM businesses WHERE name LIKE ? ORDER BY name LIMIT 30`).bind(`%${q}%`).all<any>()).results : [];
+const placements = tab === 'money' ? (await db.prepare(`SELECT p.*, b.name, b.slug FROM placements p JOIN businesses b ON b.id = p.business_id ORDER BY p.ends_on DESC LIMIT 50`).all<any>()).results : [];
+const ads = tab === 'money' ? (await db.prepare(`SELECT * FROM ads ORDER BY ends_on DESC LIMIT 50`).all<any>()).results : [];
+const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER BY name`).all<any>()).results : [];
+---
+<Base title="Admin" noindex>
+  <div class="wrap stack-lg">
+    <header class="stack">
+      <h1>Admin</h1>
+      <div class="stats">
+        <div class="stat"><b>{N.biz.toLocaleString()}</b><span>Active listings</span></div>
+        <div class="stat"><b>{N.claimed}</b><span>Claimed</span></div>
+        <div class="stat"><b>{N.insp.toLocaleString()}</b><span>Inspections</span></div>
+        <div class="stat"><b>{N.placements}</b><span>Active Featured</span></div>
+      </div>
+      <nav class="admin-nav">
+        <a class="chip" href="/admin" aria-current={tab === 'queue' ? 'page' : undefined}>Queue ({R.length + C.length + P.length + L.length})</a>
+        <a class="chip" href="/admin?tab=find" aria-current={tab === 'find' ? 'page' : undefined}>Find &amp; edit listings</a>
+        <a class="chip" href="/admin?tab=money" aria-current={tab === 'money' ? 'page' : undefined}>Featured &amp; ads</a>
+        <a class="chip" href="/admin?tab=cities" aria-current={tab === 'cities' ? 'page' : undefined}>City intros</a>
+        <a class="chip" href="/admin/business">Add a listing</a>
+        <a class="chip" href="/admin/export.csv">Export unclaimed (CSV for GHL)</a>
+      </nav>
+      {msg && <p class="notice notice-ok" role="status">{msg}</p>}
+    </header>
+
+    {tab === 'queue' && <>
+      <section class="stack">
+        <h2>Reviews waiting ({R.length})</h2>
+        {R.map((r) => (
+          <div class="panel">
+            <p><strong>{'★'.repeat(r.rating)}</strong> for <a href={`/business/${r.business_slug}`}>{r.business_name}</a> · {r.name} · <span class="muted">{r.email}</span> · {r.email_verified ? <span class="badge badge-verified">Email confirmed</span> : <span class="badge badge-record">Email not confirmed</span>}</p>
+            <p style="white-space:pre-line">{r.body}</p>
+            <div class="row-actions">
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="review_approve" /><input type="hidden" name="id" value={r.id} /><button class="btn btn-sm btn-primary">Publish</button></form>
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="review_reject" /><input type="hidden" name="id" value={r.id} /><button class="btn btn-sm">Reject (policy)</button></form>
+            </div>
+          </div>
+        ))}
+        <p class="small muted">Publish every genuine review, good or bad. Reject only for the reasons on the How we work page.</p>
+      </section>
+
+      <section class="stack">
+        <h2>Ownership claims ({C.length})</h2>
+        {C.map((c) => (
+          <div class="panel">
+            <p><a href={`/business/${c.business_slug}`}>{c.business_name}</a> · {c.name} ({c.role}) · {c.email} · {c.phone}</p>
+            <p class="small">{c.domain_match ? <span class="badge badge-verified">Email matches website</span> : <span class="badge badge-record">Email doesn't match website</span>} Number to call to verify: <span class="record">{c.business_phone || c.record_phone || 'none on file'}</span></p>
+            {c.note && <p class="small muted">{c.note}</p>}
+            <div class="row-actions">
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="claim_approve" /><input type="hidden" name="id" value={c.id} /><button class="btn btn-sm btn-primary">Verified, approve and email owner link</button></form>
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="claim_reject" /><input type="hidden" name="id" value={c.id} /><button class="btn btn-sm">Reject</button></form>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section class="stack">
+        <h2>New business submissions ({P.length})</h2>
+        {P.map((b) => (
+          <div class="panel">
+            <p><strong>{b.name}</strong> · {categoryLabel(b.category)} · {b.city} · {b.phone} {b.website && <a href={b.website} target="_blank" rel="noopener">{b.website}</a>}</p>
+            {b.description && <p class="small">{b.description}</p>}
+            <div class="row-actions">
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="business_approve" /><input type="hidden" name="id" value={b.id} /><button class="btn btn-sm btn-primary">Publish{b.owner_email ? ' and email owner link' : ''}</button></form>
+              <a class="btn btn-sm" href={`/admin/business?id=${b.id}`}>Edit first</a>
+              <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="business_reject" /><input type="hidden" name="id" value={b.id} /><button class="btn btn-sm">Hide</button></form>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section class="stack">
+        <h2>Leads and reports ({L.length})</h2>
+        {L.map((l) => (
+          <div class="panel">
+            <p><span class="badge badge-record">{l.kind}</span> {l.business_name} · {l.name} · {l.email} {l.phone} · <span class="muted small">{fmtDate(l.created_at)}</span></p>
+            <p class="small record" style="white-space:pre-wrap;overflow-wrap:anywhere">{l.payload}</p>
+            <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="lead_done" /><input type="hidden" name="id" value={l.id} /><button class="btn btn-sm">Mark handled</button></form>
+          </div>
+        ))}
+      </section>
+
+      <section class="stack">
+        <h2>Data imports</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Started</th><th>Kind</th><th class="num">Read</th><th class="num">Kept</th><th>Note</th></tr></thead>
+          <tbody>{I.map((r) => <tr><td class="record">{r.started_at}</td><td>{r.kind}</td><td class="num">{r.rows_read}</td><td class="num">{r.rows_kept}</td><td class="small" style="max-width:420px;overflow-wrap:anywhere">{r.note}</td></tr>)}</tbody>
+        </table></div>
+      </section>
+    </>}
+
+    {tab === 'find' && (
+      <section class="stack">
+        <form method="get" class="row-actions"><input type="hidden" name="tab" value="find" /><input name="q" value={q} placeholder="Business name" style="max-width:360px" /><button class="btn btn-primary">Find</button></form>
+        {found.length > 0 && <div class="table-scroll"><table>
+          <thead><tr><th>Name</th><th>City</th><th>Category</th><th>Status</th><th></th></tr></thead>
+          <tbody>{found.map((b: any) => <tr><td><a href={`/business/${b.slug}`}>{b.name}</a></td><td>{b.city}</td><td>{categoryLabel(b.category)}</td><td>{b.status}{b.claimed ? ' · claimed' : ''}</td><td><a href={`/admin/business?id=${b.id}`}>Edit</a></td></tr>)}</tbody>
+        </table></div>}
+      </section>
+    )}
+
+    {tab === 'money' && <>
+      <section class="stack">
+        <h2>Add a Featured placement</h2>
+        <form method="post" action="/api/admin/action" class="panel stack">
+          <input type="hidden" name="action" value="placement_add" />
+          <label class="field"><span>Business page address (slug)</span><input name="slug" required placeholder="las-olas-grill-fort-lauderdale" /></label>
+          <label class="field"><span>City slug (blank = every city)</span><input name="city_slug" placeholder="davie" /></label>
+          <label class="field"><span>Category slug (blank = every category)</span><input name="category" placeholder="auto" /></label>
+          <label class="field"><span>Starts</span><input name="starts_on" type="date" required /></label>
+          <label class="field"><span>Ends</span><input name="ends_on" type="date" required /></label>
+          <label class="field"><span>Note (invoice, plan)</span><input name="note" /></label>
+          <button class="btn btn-primary">Add placement</button>
+        </form>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Business</th><th>Scope</th><th>Dates</th><th></th></tr></thead>
+          <tbody>{placements.map((p: any) => <tr><td><a href={`/business/${p.slug}`}>{p.name}</a></td><td>{p.city_slug ?? 'all cities'} / {p.category ?? 'all categories'}</td><td class="record">{p.starts_on} → {p.ends_on}</td><td><form method="post" action="/api/admin/action"><input type="hidden" name="action" value="placement_end" /><input type="hidden" name="id" value={p.id} /><button class="btn btn-sm">End now</button></form></td></tr>)}</tbody>
+        </table></div>
+      </section>
+      <section class="stack">
+        <h2>Add a display ad</h2>
+        <form method="post" action="/api/admin/action" class="panel stack">
+          <input type="hidden" name="action" value="ad_add" />
+          <label class="field"><span>Advertiser</span><input name="advertiser" required /></label>
+          <label class="field"><span>Where</span><select name="slot"><option value="home">Home page</option><option value="city">City pages</option><option value="category">Category pages</option></select></label>
+          <label class="field"><span>City or category slug (blank = all pages in that slot)</span><input name="scope_slug" /></label>
+          <label class="field"><span>Image URL (1200×300 works on every screen)</span><input name="image_url" type="url" required /></label>
+          <label class="field"><span>Click-through URL</span><input name="link_url" type="url" required /></label>
+          <label class="field"><span>Image description</span><input name="alt" required /></label>
+          <label class="field"><span>Starts</span><input name="starts_on" type="date" required /></label>
+          <label class="field"><span>Ends</span><input name="ends_on" type="date" required /></label>
+          <button class="btn btn-primary">Add ad</button>
+        </form>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Advertiser</th><th>Slot</th><th>Dates</th><th></th></tr></thead>
+          <tbody>{ads.map((a: any) => <tr><td>{a.advertiser}</td><td>{a.slot}{a.scope_slug ? ` / ${a.scope_slug}` : ''}</td><td class="record">{a.starts_on} → {a.ends_on}</td><td><form method="post" action="/api/admin/action"><input type="hidden" name="action" value="ad_end" /><input type="hidden" name="id" value={a.id} /><button class="btn btn-sm">End now</button></form></td></tr>)}</tbody>
+        </table></div>
+      </section>
+    </>}
+
+    {tab === 'cities' && (
+      <section class="stack">
+        <p class="muted">A short, original intro makes each city page unique. Two or three sentences about the local business scene are plenty. Leave blank to show only the numbers.</p>
+        {cities.map((c: any) => (
+          <form method="post" action="/api/admin/action" class="panel stack">
+            <input type="hidden" name="action" value="city_save" /><input type="hidden" name="slug" value={c.slug} />
+            <label class="field"><span>{c.name}</span><textarea name="intro" maxlength="800">{c.intro ?? ''}</textarea></label>
+            <button class="btn btn-sm">Save {c.name}</button>
+          </form>
+        ))}
+      </section>
+    )}
+  </div>
+</Base>

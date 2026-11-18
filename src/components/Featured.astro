@@ -1,0 +1,12 @@
+---
+import type { Business } from '../lib/db';
+import ListingCard from './ListingCard.astro';
+interface Props { items: Business[] }
+const { items } = Astro.props;
+---
+{items.length > 0 && (
+  <section class="featured-strip" aria-label="Featured businesses">
+    <p class="label"><span>Featured · paid placement</span><a href="/how-it-works#featured" class="small">What this means</a></p>
+    <div class="grid">{items.map((b) => <ListingCard b={b} featured />)}</div>
+  </section>
+)}

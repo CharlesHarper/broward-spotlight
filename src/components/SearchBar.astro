@@ -1,0 +1,17 @@
+---
+import { CITY_NAMES } from '../lib/shared';
+interface Props { q?: string; city?: string | null }
+const { q = '', city = null } = Astro.props;
+---
+<div class="searchbar">
+  <form class="wrap" action="/search" method="get" role="search">
+    <label class="sr" for="sq">Search Broward businesses</label>
+    <input id="sq" name="q" value={q} placeholder="Restaurants, barbers, roofers…" autocomplete="off" />
+    <label class="sr" for="sc">City</label>
+    <select id="sc" name="city">
+      <option value="">All of Broward</option>
+      {Object.entries(CITY_NAMES).map(([slug, name]) => <option value={slug} selected={slug === city}>{name}</option>)}
+    </select>
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
+</div>

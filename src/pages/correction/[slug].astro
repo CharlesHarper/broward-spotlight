@@ -1,0 +1,21 @@
+---
+import Base from '../../layouts/Base.astro';
+import BotFields from '../../components/BotFields.astro';
+import { getBusiness } from '../../lib/db';
+import { env } from '../../lib/util';
+const b = await getBusiness(env(Astro.locals).DB, Astro.params.slug!);
+if (!b) return Astro.rewrite('/404');
+---
+<Base title={`Report a mistake: ${b.name}`} noindex>
+  <div class="wrap stack-lg" style="max-width:680px">
+    <header class="stack"><h1>Report a mistake</h1><p>Tell us what's wrong on the <a href={`/business/${b.slug}`}>{b.name}</a> page. We check every report against the original source.</p></header>
+    <form method="post" action="/api/correction" class="panel stack">
+      <input type="hidden" name="slug" value={b.slug} />
+      <BotFields />
+      <label class="field"><span>What's wrong?</span><textarea name="details" required maxlength="2000" placeholder="For example: the business moved to 123 Main St, or the phone number is out of date."></textarea></label>
+      <label class="field"><span>Your email</span><input name="email" type="email" required autocomplete="email" /><small>So we can follow up if we need proof.</small></label>
+      <p class="small muted">We can fix our own text and contact details. State inspection and license records are shown as the state publishes them; if a state record is wrong, the state has to correct it, and we'll pick up the fix on our next weekly import.</p>
+      <button class="btn btn-primary" type="submit">Send report</button>
+    </form>
+  </div>
+</Base>

@@ -1,0 +1,51 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env, fmtDate } from '../../lib/util';
+import type { Business, Review } from '../../lib/db';
+const e = env(Astro.locals);
+const b = await e.DB.prepare(`SELECT * FROM businesses WHERE owner_token = ?`).bind(Astro.params.token).first<Business>();
+if (!b) return new Response('This owner link is not valid. Ask us for a new one.', { status: 404 });
+const { results: reviews } = await e.DB.prepare(`SELECT * FROM reviews WHERE business_id = ? AND status = 'approved' ORDER BY created_at DESC`).bind(b.id).all<Review>();
+const saved = Astro.url.searchParams.get('saved');
+const t = Astro.params.token;
+---
+<Base title={`Manage ${b.name}`} noindex>
+  <div class="wrap stack-lg" style="max-width:820px">
+    <header class="stack">
+      <p class="label">Owner page · keep this link private</p>
+      <h1>{b.name}</h1>
+      <p><a href={`/business/${b.slug}`}>View your public listing</a></p>
+    </header>
+    {saved && <p class="notice notice-ok" role="status">Saved. Your listing is updated.</p>}
+    <form method="post" action="/api/owner/update" class="panel stack">
+      <h2>Listing details</h2>
+      <input type="hidden" name="token" value={t} />
+      <label class="field"><span>Public phone</span><input name="phone" type="tel" value={b.phone ?? ''} /></label>
+      <label class="field"><span>Website</span><input name="website" type="url" value={b.website ?? ''} placeholder="https://" /></label>
+      <label class="field"><span>Public email (optional)</span><input name="email" type="email" value={b.email ?? ''} /></label>
+      <label class="field"><span>Hours</span><textarea name="hours" maxlength="500" placeholder="Mon–Fri 9–6&#10;Sat 10–4&#10;Sun closed">{b.hours ?? ''}</textarea></label>
+      <label class="field"><span>About your business</span><textarea name="description" maxlength="2000">{b.description ?? ''}</textarea><small>Shown with the note "Written by the business owner".</small></label>
+      <label class="field"><span>Facebook page URL</span><input name="facebook" type="url" value={b.facebook ?? ''} /></label>
+      <label class="field"><span>Instagram profile URL</span><input name="instagram" type="url" value={b.instagram ?? ''} /></label>
+      <button class="btn btn-primary" type="submit">Save changes</button>
+    </form>
+    <section class="stack">
+      <h2>Reply to reviews</h2>
+      {reviews.length ? reviews.map((r) => (
+        <form method="post" action="/api/owner/respond" class="panel stack">
+          <input type="hidden" name="token" value={t} />
+          <input type="hidden" name="review_id" value={r.id} />
+          <p><strong>{'★'.repeat(r.rating)}</strong> · {r.name} · <span class="muted">{fmtDate(r.created_at)}</span></p>
+          <p style="white-space:pre-line">{r.body}</p>
+          <label class="field"><span>Your public reply</span><textarea name="response" maxlength="1500">{r.owner_response ?? ''}</textarea></label>
+          <button class="btn" type="submit">{r.owner_response ? 'Update reply' : 'Post reply'}</button>
+        </form>
+      )) : <p class="muted">No reviews yet.</p>}
+    </section>
+    <section class="panel panel-sunk stack">
+      <h2>Want more customers to find you?</h2>
+      <p>Featured listings sit at the top of your city and category pages, clearly labeled. Your reviews and records stay exactly the same.</p>
+      <a class="btn btn-spot" href="/advertise">See Featured options</a>
+    </section>
+  </div>
+</Base>

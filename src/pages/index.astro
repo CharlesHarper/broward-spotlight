@@ -1,0 +1,91 @@
+---
+import Base from '../layouts/Base.astro';
+import ListingCard from '../components/ListingCard.astro';
+import Featured from '../components/Featured.astro';
+import Status from '../components/Status.astro';
+import Ad from '../components/Ad.astro';
+import { featured, recentFlagged, cityCounts, activeAd } from '../lib/db';
+import { CATEGORIES, CITY_NAMES } from '../lib/shared';
+import { env, fmtDate } from '../lib/util';
+
+const db = env(Astro.locals).DB;
+const [feat, flagged, cities, ad, totals] = await Promise.all([
+  featured(db, { limit: 3 }),
+  recentFlagged(db, 14, 6),
+  cityCounts(db),
+  activeAd(db, 'home'),
+  db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE status='active') AS biz, (SELECT COUNT(*) FROM inspections) AS insp, (SELECT MAX(date) FROM inspections) AS latest`).first<{ biz: number; insp: number; latest: string | null }>(),
+]);
+const topCities = cities.filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+<Base title="Broward Spotlight" description="Search Broward County businesses with the facts on the record: state restaurant inspections, license status, verified owners and real customer reviews.">
+  <div class="hero">
+    <div class="wrap">
+      <p class="label" style="color:var(--spot)">Broward County, on the record</p>
+      <h1>Know who you're <span class="hl">trusting</span> before you go.</h1>
+      <p>State inspection results, license records and real reviews for {totals?.biz?.toLocaleString() ?? 0} Broward businesses. Nobody can pay to change a record.</p>
+      <form action="/search" method="get" role="search">
+        <label class="sr" for="hq">Search</label>
+        <input id="hq" name="q" placeholder="Try “tacos”, “barber”, a business name…" />
+        <label class="sr" for="hc">City</label>
+        <select id="hc" name="city">
+          <option value="">All of Broward</option>
+          {Object.entries(CITY_NAMES).map(([s, n]) => <option value={s}>{n}</option>)}
+        </select>
+        <button class="btn btn-spot" type="submit">Search</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="wrap stack-lg" style="margin-top:28px">
+    <Featured items={feat} />
+
+    <section>
+      <div class="section-head">
+        <h2>This week's inspection report</h2>
+        <a href="/inspections">Full report</a>
+      </div>
+      {flagged.items.length ? (
+        <div class="grid">
+          {flagged.items.map((i) => (
+            <a class="card" href={`/business/${i.slug}`}>
+              <span class="record muted">{fmtDate(i.date)} · {i.type}</span>
+              <h3>{i.name}</h3>
+              <p class="meta">{i.city}</p>
+              <Status tone={i.tone} text={i.disposition} />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p class="notice">No warnings or emergency orders in Broward in the last 14 days of state records{totals?.latest ? `, which run through ${fmtDate(totals.latest)}` : ''}.</p>
+      )}
+      <p class="small muted" style="margin-top:10px">From Florida DBPR food service inspections. Shown exactly as the state records them.</p>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>Browse by category</h2><a href="/categories">All categories</a></div>
+      <div class="chips" style="flex-wrap:wrap">
+        {CATEGORIES.map((c) => <a class="chip" href={`/category/${c.slug}`}>{c.label}</a>)}
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head"><h2>Browse by city</h2><a href="/cities">All 31 cities</a></div>
+      <div class="chips" style="flex-wrap:wrap">
+        {(topCities.length ? topCities : cities).map((c) => <a class="chip" href={`/city/${c.slug}`}>{c.name}{c.n > 0 && <span class="n">{c.n.toLocaleString()}</span>}</a>)}
+      </div>
+    </section>
+
+    <Ad ad={ad} />
+
+    <section class="panel panel-sunk">
+      <h2>Own a Broward business?</h2>
+      <p>Your listing may already be here, built from public records. Claim it for free to add photos, hours and your website, and to answer reviews. Not listed yet? Add it in two minutes.</p>
+      <div class="row-actions">
+        <a class="btn btn-primary" href="/search">Find and claim your listing</a>
+        <a class="btn" href="/add-business">Add your business</a>
+      </div>
+    </section>
+  </div>
+</Base>

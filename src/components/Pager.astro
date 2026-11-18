@@ -1,0 +1,14 @@
+---
+import { PAGE_SIZE } from '../lib/db';
+interface Props { page: number; total: number; base: URL }
+const { page, total, base } = Astro.props;
+const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+const href = (p: number) => { const u = new URL(base); if (p > 1) u.searchParams.set('page', String(p)); else u.searchParams.delete('page'); return u.pathname + u.search; };
+---
+{pages > 1 && (
+  <nav class="pager" aria-label="Pages">
+    {page > 1 ? <a class="btn btn-sm" href={href(page - 1)} rel="prev">Previous</a> : <span />}
+    <span class="small muted">Page {page} of {pages}</span>
+    {page < pages ? <a class="btn btn-sm" href={href(page + 1)} rel="next">Next</a> : <span />}
+  </nav>
+)}

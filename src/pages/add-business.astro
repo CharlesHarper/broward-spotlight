@@ -1,0 +1,38 @@
+---
+import Base from '../layouts/Base.astro';
+import BotFields from '../components/BotFields.astro';
+import { CATEGORIES, CITY_NAMES } from '../lib/shared';
+const sent = Astro.url.searchParams.get('sent');
+---
+<Base title="Add your business" description="Add your Broward County business to Broward Spotlight for free. Any industry that serves customers.">
+  <div class="wrap stack-lg" style="max-width:720px">
+    <header class="stack">
+      <p class="label">Free · any industry</p>
+      <h1>Add your business</h1>
+      <p>Every Broward business that serves customers belongs here, from food trucks to roofers. We check each submission before it goes live, usually within two business days.</p>
+    </header>
+    {sent ? <p class="notice notice-ok" role="status">Got it. We'll check the details and email you when your listing is live, with a link to manage it.</p> : (
+      <form method="post" action="/api/add-business" class="panel stack">
+        <BotFields />
+        <label class="field"><span>Business name</span><input name="business_name" required maxlength="120" /></label>
+        <label class="field"><span>Category</span>
+          <select name="category" required><option value="">Choose one</option>{CATEGORIES.map((c) => <option value={c.slug}>{c.label}</option>)}</select>
+        </label>
+        <label class="field"><span>What you do, in a few words</span><input name="subtype" maxlength="60" placeholder="e.g. Window tint and PPF" /></label>
+        <label class="field"><span>Street address</span><input name="address" maxlength="160" autocomplete="street-address" /><small>Leave blank if you only serve customers at their location.</small></label>
+        <label class="field"><span>City</span>
+          <select name="city" required><option value="">Choose one</option>{Object.entries(CITY_NAMES).map(([s, n]) => <option value={s}>{n}</option>)}</select>
+        </label>
+        <label class="field"><span>ZIP</span><input name="zip" inputmode="numeric" maxlength="10" autocomplete="postal-code" /></label>
+        <label class="field"><span>Business phone</span><input name="phone" type="tel" required /></label>
+        <label class="field"><span>Website</span><input name="website" type="url" placeholder="https://" /></label>
+        <label class="field"><span>Short description</span><textarea name="description" maxlength="1500"></textarea></label>
+        <hr style="border:0;border-top:1px solid var(--line);width:100%" />
+        <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
+        <label class="field"><span>Your email</span><input name="email" type="email" required autocomplete="email" /></label>
+        <label class="check"><input type="checkbox" name="is_owner" /> I own or manage this business (we'll set you up to manage the listing)</label>
+        <button class="btn btn-primary" type="submit">Submit business</button>
+      </form>
+    )}
+  </div>
+</Base>

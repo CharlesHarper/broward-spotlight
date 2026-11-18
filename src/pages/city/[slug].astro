@@ -1,0 +1,91 @@
+---
+import Base from '../../layouts/Base.astro';
+import ListingCard from '../../components/ListingCard.astro';
+import Featured from '../../components/Featured.astro';
+import Status from '../../components/Status.astro';
+import Pager from '../../components/Pager.astro';
+import Ad from '../../components/Ad.astro';
+import { listBusinesses, featured, cityStats, cityRow, activeAd } from '../../lib/db';
+import { CATEGORIES, categoryLabel } from '../../lib/shared';
+import { env, fmtDate } from '../../lib/util';
+
+const db = env(Astro.locals).DB;
+const slug = Astro.params.slug!;
+const city = await cityRow(db, slug);
+if (!city) return Astro.rewrite('/404');
+const cat = Astro.url.searchParams.get('category');
+const category = CATEGORIES.some((c) => c.slug === cat) ? cat : null;
+const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
+const [list, feat, stats, ad] = await Promise.all([
+  listBusinesses(db, { city: slug, category, page }),
+  featured(db, { city: slug, category, limit: 3 }),
+  cityStats(db, slug),
+  activeAd(db, 'city', slug),
+]);
+const okShare = stats.inspected90 ? Math.round(((stats.tones.ok ?? 0) / stats.inspected90) * 100) : null;
+const title = category ? `${categoryLabel(category)} in ${city.name}, FL` : `${city.name}, FL businesses`;
+const desc = `${stats.listings.toLocaleString()} ${city.name} businesses with state inspection results, license records and reviews. ${stats.inspected90} inspections in the last 90 days.`;
+const indexable = stats.listings > 0 && page === 1;
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+<Base title={title} description={desc} search city={slug} noindex={!indexable} canonical={category ? undefined : new URL(`/city/${slug}`, Astro.url).toString()}>
+  <div class="wrap stack-lg">
+    <header class="stack">
+      <p class="label"><a href="/cities">Cities</a> / Broward County</p>
+      <h1>{category ? `${categoryLabel(category)} in ${city.name}` : city.name}</h1>
+      {city.intro && <p style="max-width:65ch">{city.intro}</p>}
+    </header>
+
+    <section aria-label={`${city.name} by the numbers`}>
+      <div class="stats">
+        <div class="stat"><b>{stats.listings.toLocaleString()}</b><span>Listed businesses</span></div>
+        <div class="stat"><b>{stats.inspected90.toLocaleString()}</b><span>State inspections, last 90 days</span></div>
+        <div class="stat"><b>{okShare === null ? '—' : `${okShare}%`}</b><span>Completed with no further action, last 90 days</span></div>
+        <div class="stat"><b>{stats.closures365}</b><span>Businesses with an emergency order, last 12 months</span></div>
+      </div>
+      <p class="small muted" style="margin-top:8px">Inspection figures cover food service businesses inspected by Florida DBPR.</p>
+    </section>
+
+    <nav class="chips" aria-label="Categories">
+      <a class="chip" href={`/city/${slug}`} aria-current={!category ? 'page' : undefined}>All</a>
+      {stats.categories.map((c) => (
+        <a class="chip" href={`/city/${slug}?category=${c.category}`} aria-current={category === c.category ? 'page' : undefined}>
+          {categoryLabel(c.category)} <span class="n">{c.n.toLocaleString()}</span>
+        </a>
+      ))}
+    </nav>
+
+    <Featured items={feat} />
+
+    <section>
+      <div class="section-head">
+        <h2>{category ? categoryLabel(category) : 'All businesses'} <span class="muted small">({list.total.toLocaleString()})</span></h2>
+      </div>
+      {list.items.length ? <div class="grid">{list.items.map((b) => <ListingCard b={b} />)}</div>
+        : <p class="notice">No listings here yet. <a href="/add-business">Add a business in {city.name}</a>.</p>}
+      <Pager page={list.page} total={list.total} base={Astro.url} />
+    </section>
+
+    <Ad ad={ad} />
+
+    {stats.recent.length > 0 && (
+      <section>
+        <div class="section-head"><h2>Latest inspections in {city.name}</h2><a href="/inspections">Countywide report</a></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th>Business</th><th>Result</th></tr></thead>
+            <tbody>
+              {stats.recent.map((i) => (
+                <tr>
+                  <td class="record">{fmtDate(i.date)}</td>
+                  <td><a href={`/business/${i.slug}`}>{i.name}</a></td>
+                  <td><Status tone={i.tone} text={i.disposition} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
+  </div>
+</Base>

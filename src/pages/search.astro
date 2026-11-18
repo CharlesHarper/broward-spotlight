@@ -1,0 +1,37 @@
+---
+import Base from '../layouts/Base.astro';
+import ListingCard from '../components/ListingCard.astro';
+import Featured from '../components/Featured.astro';
+import Pager from '../components/Pager.astro';
+import { search, featured } from '../lib/db';
+import { CATEGORIES, CITY_NAMES, categoryLabel } from '../lib/shared';
+import { env } from '../lib/util';
+const db = env(Astro.locals).DB;
+const q = (Astro.url.searchParams.get('q') ?? '').slice(0, 120);
+const cityParam = Astro.url.searchParams.get('city');
+const city = cityParam && CITY_NAMES[cityParam] ? cityParam : null;
+const catParam = Astro.url.searchParams.get('category');
+const category = CATEGORIES.some((c) => c.slug === catParam) ? catParam : null;
+const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
+const [res, feat] = await Promise.all([
+  search(db, q, { city, category, page }),
+  page === 1 ? featured(db, { city, category, limit: 2 }) : Promise.resolve([]),
+]);
+const where = city ? CITY_NAMES[city] : 'Broward';
+---
+<Base title={q ? `“${q}” in ${where}` : `Search ${where}`} search q={q} city={city} noindex>
+  <div class="wrap stack-lg">
+    <header class="stack">
+      <h1>{q ? <>Results for “{q}”</> : 'All businesses'}</h1>
+      <p class="muted">{res.total.toLocaleString()} {res.total === 1 ? 'match' : 'matches'} in {where}{category ? ` · ${categoryLabel(category)}` : ''}</p>
+    </header>
+    <Featured items={feat} />
+    {res.items.length ? <div class="grid">{res.items.map((b) => <ListingCard b={b} />)}</div> : (
+      <div class="notice">
+        <p>No match for that search. Try fewer words, a different spelling, or all of Broward.</p>
+        <p style="margin-top:8px">Is it your business? <a href="/add-business">Add it free</a>.</p>
+      </div>
+    )}
+    <Pager page={res.page} total={res.total} base={Astro.url} />
+  </div>
+</Base>

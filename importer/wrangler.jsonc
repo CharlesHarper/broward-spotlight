@@ -1,0 +1,26 @@
+{
+  // Weekly Florida DBPR import into the site's D1 database.
+  "name": "broward-spotlight-importer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "observability": { "enabled": true },
+  "limits": { "cpu_ms": 300000 },
+  "triggers": { "crons": ["17 11 * * 2", "*/20 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "broward-spotlight",
+      // Same id as the website's wrangler.jsonc
+      "database_id": "b0960906-88f6-4a53-84ca-241d5b556ebf",
+      "migrations_dir": "../migrations"
+    }
+  ],
+  "vars": {
+    "DBPR_BASE": "https://www2.myfloridalicense.com/sto/file_download/extracts",
+    "DBPR_DISTRICT": "2",
+    "BROWARD_COUNTY_CODE": "16",
+    "BTR_URL": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/ArcGIS/rest/services/TaxDatabase2021/FeatureServer/12/query"
+  }
+  // Secret: IMPORT_KEY (any long random string) lets you start an import by hand:
+  //   curl -X POST -H "x-import-key: YOUR_KEY" https://broward-spotlight-importer.<you>.workers.dev/run
+}
