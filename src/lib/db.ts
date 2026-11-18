@@ -81,7 +81,7 @@ export async function search(db: D1Database, q: string, opts: { city?: string | 
 }
 
 export async function getBusiness(db: D1Database, slug: string) {
-  return db.prepare(`SELECT * FROM businesses WHERE slug = ? AND status != 'hidden'`).bind(slug).first<Business>();
+  return db.prepare(`SELECT * FROM businesses WHERE slug = ? AND status != 'hidden' AND NOT (status = 'inactive' AND source = 'county')`).bind(slug).first<Business>();
 }
 
 export async function businessDetail(db: D1Database, b: Business) {

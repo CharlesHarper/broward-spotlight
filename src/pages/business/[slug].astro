@@ -21,7 +21,7 @@ const webLinks = [
   { label: 'Florida business registration (Sunbiz)', href: `https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm=${encodeURIComponent(b.license_holder ?? b.name)}` },
 ];
 const showStreet = !!b.address && (!b.hide_street || !!b.claimed);
-const isFood = b.category === 'restaurants' || b.category === 'food-trucks';
+const isFood = !!b.dbpr_license || b.category === 'restaurants' || b.category === 'food-trucks';
 const schemaType = b.category === 'restaurants' ? 'Restaurant' : b.category === 'food-trucks' ? 'FoodEstablishment' : b.category === 'beauty' ? 'HealthAndBeautyBusiness' : b.category === 'auto' ? 'AutomotiveBusiness' : b.category === 'home-services' ? 'HomeAndConstructionBusiness' : b.category === 'professional' ? 'ProfessionalService' : 'LocalBusiness';
 const jsonld = {
   '@context': 'https://schema.org',
@@ -40,7 +40,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
   <div class="wrap">
     {msg === 'review' && <p class="notice notice-ok" role="status">Thanks. Your review is in. Check your email to confirm it; we post it once it passes our review policy check.</p>}
     {msg === 'claim' && <p class="notice notice-ok" role="status">Claim received. We verify every owner by contacting the business directly, usually within two business days.</p>}
-    {b.status === 'inactive' && <p class="notice notice-warn" role="status">This location no longer appears on the state's list of active food service licenses. It may have closed, moved or changed owners. Its records are kept here for reference.</p>}
+    {b.status === 'inactive' && b.source === 'dbpr' && <p class="notice notice-warn" role="status">This location no longer appears on the state's list of active food service licenses. It may have closed, moved or changed owners. Its records are kept here for reference.</p>}
     {msg === 'correction' && <p class="notice notice-ok" role="status">Thanks. We'll check that against the source and update the listing if it's wrong.</p>}
 
     <header class="biz-head" style="margin-top:8px">

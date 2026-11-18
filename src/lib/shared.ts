@@ -27,7 +27,7 @@ export const CITY_NAMES: Record<string, string> = {
   'north-lauderdale': 'North Lauderdale', 'oakland-park': 'Oakland Park', parkland: 'Parkland', 'pembroke-park': 'Pembroke Park',
   'pembroke-pines': 'Pembroke Pines', plantation: 'Plantation', 'pompano-beach': 'Pompano Beach', 'sea-ranch-lakes': 'Sea Ranch Lakes',
   'southwest-ranches': 'Southwest Ranches', sunrise: 'Sunrise', tamarac: 'Tamarac', 'west-park': 'West Park', weston: 'Weston',
-  'wilton-manors': 'Wilton Manors',
+  'wilton-manors': 'Wilton Manors', 'unincorporated-broward': 'Unincorporated Broward',
 };
 
 // Spellings that show up in state records, mapped to the city slug.
@@ -37,7 +37,8 @@ const CITY_ALIASES: Record<string, string> = {
   'N LAUDERDALE': 'north-lauderdale', 'NORTH LAUDERDALE': 'north-lauderdale', 'HALLANDALE': 'hallandale-beach',
   'POMPANO BCH': 'pompano-beach', 'POMPANO': 'pompano-beach', 'DEERFIELD BCH': 'deerfield-beach', 'DEERFIELD': 'deerfield-beach',
   'DANIA': 'dania-beach', 'PEMBROKE PNES': 'pembroke-pines', 'SW RANCHES': 'southwest-ranches', 'LIGHTHOUSE PT': 'lighthouse-point',
-  'CORAL SPGS': 'coral-springs', 'OAKLAND PK': 'oakland-park',
+  'CORAL SPGS': 'coral-springs', 'OAKLAND PK': 'oakland-park', 'LAUDERDALE-BY-THE-SE': 'lauderdale-by-the-sea',
+  BMSD: 'unincorporated-broward', 'COUNTY REGIONAL FACILITY': 'unincorporated-broward', UNINCORPORATED: 'unincorporated-broward', 'BROWARD COUNTY': 'unincorporated-broward',
 };
 
 export function slugify(s: string): string {
@@ -107,6 +108,11 @@ export function dispositionTone(disposition: string | null | undefined): Tone {
 export const DBPR_RANKS: Record<string, { category: string; subtype: string }> = {
   MFDV: { category: 'food-trucks', subtype: 'Mobile food vehicle' },
   SEAT: { category: 'restaurants', subtype: 'Restaurant with seating' },
+  NOST: { category: 'restaurants', subtype: 'Take-out and counter service' },
+  CATR: { category: 'restaurants', subtype: 'Caterer' },
+  HTDG: { category: 'food-trucks', subtype: 'Hot dog cart' },
+  TEMP: { category: 'events', subtype: 'Temporary event food service' },
+  VEND: { category: 'restaurants', subtype: 'Food vending' },
 };
 export function dbprRank(rank: string | null | undefined) {
   return DBPR_RANKS[(rank ?? '').trim().toUpperCase()] ?? { category: 'restaurants', subtype: 'Food service establishment' };

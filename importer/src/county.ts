@@ -61,7 +61,7 @@ export async function importCountySlice(env: CountyEnv) {
   const attach = db.prepare(`UPDATE businesses SET btr_account = ?1, btr_category = ?2, started_on = ?3, lat = ?4, lng = ?5, updated_at = datetime('now') WHERE id = ?6 AND btr_account IS NULL`);
 
   const pending: D1PreparedStatement[] = [];
-  let read = 0, kept = 0, merged = 0, skippedPeople = 0, skippedType = 0, finished = false;
+  let read = 0, kept = 0, merged = 0, skippedPeople = 0, skippedType = 0, skippedOutside = 0, finished = false;
 
   for (let p = 0; p < PAGES; p++) {
     const url = `${env.BTR_URL}?where=1%3D1&outFields=${FIELDS}&orderByFields=OBJECTID&resultOffset=${offset}&resultRecordCount=${PAGE}&returnGeometry=true&outSR=4326&f=json`;
@@ -82,7 +82,10 @@ export async function importCountySlice(env: CountyEnv) {
       if (!dba && (!/[a-z]/i.test(legal) || (owner && norm(legal) === norm(owner)))) { skippedPeople++; continue; }
       const name = cleanBizName(dba || legal);
       if (!name) continue;
-      const city = normalizeCity(s(a.CITYNAME) || s(a.Business_City));
+      // Only businesses located in Broward: use the GIS municipality, else the mailing city if it is a Broward city.
+      const c1 = normalizeCity(s(a.CITYNAME)), c2 = normalizeCity(s(a.Business_City));
+      const city = c1 && CITY_NAMES[c1.slug] ? c1 : c2 && CITY_NAMES[c2.slug] ? c2 : null;
+      if (!city) { skippedOutside++; continue; }
       const zip = s(a.Business_Zip).slice(0, 5) || null;
       const started = a.Business_Start_Date ? new Date(Number(a.Business_Start_Date)).toISOString().slice(0, 10) : null;
       const lat = f.geometry?.y ?? null, lng = f.geometry?.x ?? null;
@@ -109,8 +112,8 @@ export async function importCountySlice(env: CountyEnv) {
           slugs.add(slug);
           accounts.add(account);
         } else slug = `__existing-${account}`; // slug ignored on update
-        pending.push(upsert.bind(slug, name, category, titleCase(s(a.Occupation_Desc_)) || null, address, city?.name ?? null,
-          city && CITY_NAMES[city.slug] ? city.slug : city?.slug ?? null, zip, account, s(a.Category_Name) || null, started, lat, lng, hide, passStart));
+        pending.push(upsert.bind(slug, name, category, titleCase(s(a.Occupation_Desc_)) || null, address, city.name,
+          city.slug, zip, account, s(a.Category_Name) || null, started, lat, lng, hide, passStart));
       }
       kept++;
       if (pending.length >= BATCH) await db.batch(pending.splice(0));
@@ -129,5 +132,5 @@ export async function importCountySlice(env: CountyEnv) {
   } else {
     await setState(db, 'btr_offset', String(offset)).run();
   }
-  return { read, kept, note: `offset ${offset}${finished ? ' (pass complete)' : ''}; merged with state records ${merged}; skipped personal-name registrations ${skippedPeople}; skipped non-listing types or duplicate food ${skippedType}` };
+  return { read, kept, note: `offset ${offset}${finished ? ' (pass complete)' : ''}; merged with state records ${merged}; skipped personal-name registrations ${skippedPeople}; skipped non-listing types or duplicate food ${skippedType}; skipped outside Broward ${skippedOutside}` };
 }

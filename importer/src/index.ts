@@ -28,6 +28,8 @@ export function isoDate(s: string | undefined): string | null {
 }
 const int = (s: string | undefined) => { const n = parseInt((s ?? '').trim(), 10); return Number.isFinite(n) ? n : null; };
 const clean = (s: string | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
+/** The license file writes numbers with a letter prefix (SEA1600567); inspections without (1600567). Compare digits. */
+const lic = (s: string | undefined) => clean(s).toUpperCase().replace(/^[A-Z]+/, '');
 
 async function fetchCsv(url: string) {
   const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/csv,*/*' } });
@@ -75,7 +77,7 @@ export async function importLicenses(env: Env, runStart: string) {
       continue;
     }
     read++;
-    const license = clean(row[cols.license]);
+    const license = lic(row[cols.license]);
     if (!license) continue;
     const city = normalizeCity(row[cols.city]);
     const isBroward = clean(row[cols.county]) === env.BROWARD_COUNTY_CODE || (city && CITY_NAMES[city.slug]);
@@ -134,7 +136,7 @@ export async function importInspections(env: Env, runStart: string) {
     if (read === 1 && row.some((c) => /license number|county name/i.test(c))) continue; // header
     const county = clean(row[2]).toUpperCase();
     if (!county.includes('BROWARD')) continue;
-    const license = clean(row[4]);
+    const license = lic(row[4]);
     const date = isoDate(row[14]);
     if (!license || !date) continue;
     if (!known.has(license)) {
