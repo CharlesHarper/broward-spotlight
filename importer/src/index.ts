@@ -199,7 +199,12 @@ async function countySlice(env: Env) {
 
 export default {
   async scheduled(c: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(c.cron === WEEKLY_DBPR ? runAll(env) : countySlice(env));
+    if (c.cron === WEEKLY_DBPR) return ctx.waitUntil(runAll(env));
+    // First run after deploy: load state records once right away instead of waiting for Tuesday.
+    const done = await env.DB.prepare(`SELECT 1 FROM import_runs WHERE kind = 'dbpr-inspections' AND finished_at IS NOT NULL AND note NOT LIKE 'FAILED%' LIMIT 1`).first();
+    const running = await env.DB.prepare(`SELECT 1 FROM import_runs WHERE finished_at IS NULL AND started_at > datetime('now', '-30 minutes') LIMIT 1`).first();
+    if (running) return;
+    ctx.waitUntil(done ? countySlice(env) : runAll(env));
   },
   async fetch(req: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(req.url);
