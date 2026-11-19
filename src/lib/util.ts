@@ -47,13 +47,23 @@ export function fmtPhone(p: string | null | undefined) {
 }
 
 /** Send an event to the HighLevel inbound webhook. Never throws; the site works without it. */
+/** Every event carries the same set of fields (blank when not relevant), so HighLevel can map them once from any sample. */
+export const GHL_FIELDS = ['email', 'name', 'phone', 'business_name', 'city', 'category', 'website', 'claim_url', 'listing_url', 'verify_url',
+  'owner_url', 'business_url', 'rating', 'interest', 'target', 'details', 'is_owner'] as const;
+const ghlShape = (data: Record<string, unknown>) => {
+  const out: Record<string, unknown> = Object.fromEntries(GHL_FIELDS.map((k) => [k, '']));
+  for (const [k, v] of Object.entries(data)) out[k] = v ?? '';
+  if (!Array.isArray(out.tags)) out.tags = [];
+  return out;
+};
+
 export async function ghl(e: Env, event: string, data: Record<string, unknown>) {
   if (!e.GHL_WEBHOOK_URL) return false;
   try {
     const res = await fetch(e.GHL_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event, source: 'browardspotlight.com', sent_at: new Date().toISOString(), ...data }),
+      body: JSON.stringify({ event, source: 'browardspotlight.com', sent_at: new Date().toISOString(), ...ghlShape(data) }),
     });
     return res.ok;
   } catch {

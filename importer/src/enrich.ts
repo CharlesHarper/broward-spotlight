@@ -227,8 +227,11 @@ export async function sendClaimInvites(env: EnrichEnv) {
   for (const b of results) {
     const ok = await fetch(env.GHL_WEBHOOK_URL, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event: 'claim_invite', source: 'browardspotlight.com', email: b.contact_email, business_name: b.name, city: b.city ?? '', category: b.category,
-        phone: b.phone, website: b.website, listing_url: `${env.SITE_URL}/business/${b.slug}`, claim_url: `${env.SITE_URL}/claim/${b.slug}`, tags: ['spotlight-claim-invite'] }),
+      // Same field set as every event the site sends, blank where not relevant.
+      body: JSON.stringify({ event: 'claim_invite', source: 'browardspotlight.com', sent_at: new Date().toISOString(),
+        email: b.contact_email, name: '', phone: b.phone ?? '', business_name: b.name, city: b.city ?? '', category: b.category, website: b.website ?? '',
+        claim_url: `${env.SITE_URL}/claim/${b.slug}`, listing_url: `${env.SITE_URL}/business/${b.slug}`, verify_url: '', owner_url: '',
+        business_url: `${env.SITE_URL}/business/${b.slug}`, rating: '', interest: '', target: '', details: '', is_owner: '', tags: ['spotlight-claim-invite'] }),
     }).then((r) => r.ok).catch(() => false);
     if (!ok) break;
     await env.DB.prepare(`UPDATE businesses SET invited_at = datetime('now') WHERE id = ?`).bind(b.id).run();
