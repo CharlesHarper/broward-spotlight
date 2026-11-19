@@ -1,4 +1,6 @@
 {
+  // Keep variables added in the Cloudflare dashboard when a new version deploys.
+  "keep_vars": true,
   // Weekly Florida DBPR import into the site's D1 database.
   "name": "broward-spotlight-importer",
   "main": "src/index.ts",

@@ -1,4 +1,6 @@
 {
+  // Keep variables added in the Cloudflare dashboard when a new version deploys.
+  "keep_vars": true,
   // The public website (Astro on Cloudflare Workers)
   "name": "broward-spotlight",
   "main": "./dist/_worker.js/index.js",
