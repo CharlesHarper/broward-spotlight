@@ -24,6 +24,8 @@
     "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
     "SITE_URL": "https://browardspotlight.com",
     "INVITES_PER_DAY": "25",
+    // Public ownership token for IndexNow (Bing and others). The same value is served at /<key>.txt on the site.
+    "INDEXNOW_KEY": "ec597263a634daab6b5160afd3cc78c2",
     "BTR_URL": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/ArcGIS/rest/services/TaxDatabase2021/FeatureServer/12/query"
   }
   // Secret: GHL_WEBHOOK_URL turns on automatic claim invitations (same value as on the website worker).

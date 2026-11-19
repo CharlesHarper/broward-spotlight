@@ -208,7 +208,33 @@ async function countySlice(env: Env) {
 }
 
 /** Every 20 minutes: county records until the pass is done, then enrichment and claim invitations. */
+/** Once a day, tell IndexNow (Bing and partners) which public pages changed, so they are picked up in minutes instead of weeks. */
+async function pingIndexNow(env: Env) {
+  const key = (env as unknown as { INDEXNOW_KEY?: string }).INDEXNOW_KEY;
+  if (!key || !env.SITE_URL) return;
+  const last = await env.DB.prepare(`SELECT value FROM import_state WHERE key = 'indexnow_at'`).first<{ value: string }>();
+  if (last && Date.now() - Date.parse(last.value) < 24 * 36e5) return;
+  const since = last ? last.value.replace('T', ' ').slice(0, 19) : '2000-01-01 00:00:00';
+  const { results } = await env.DB.prepare(`SELECT slug FROM businesses WHERE status = 'active' AND updated_at > ?
+    AND (source != 'county' OR claimed = 1 OR description IS NOT NULL OR phone IS NOT NULL OR website IS NOT NULL
+      OR EXISTS (SELECT 1 FROM reviews r WHERE r.business_id = businesses.id AND r.status = 'approved'))
+    ORDER BY updated_at DESC LIMIT 9000`).bind(since).all<{ slug: string }>();
+  const { results: cities } = await env.DB.prepare(`SELECT slug FROM cities`).all<{ slug: string }>();
+  const site = env.SITE_URL.replace(/\/$/, '');
+  const urlList = [`${site}/`, `${site}/inspections`, `${site}/cities`, `${site}/categories`,
+    ...cities.map((c) => `${site}/city/${c.slug}`), ...results.map((b) => `${site}/business/${b.slug}`)];
+  const now = new Date().toISOString();
+  const res = await fetch('https://api.indexnow.org/indexnow', {
+    method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ host: new URL(site).hostname, key, keyLocation: `${site}/${key}.txt`, urlList }),
+  });
+  await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES ('indexnow_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')`).bind(now).run();
+  await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('indexnow', datetime('now'), datetime('now'), ?, ?, ?)`)
+    .bind(urlList.length, res.ok ? urlList.length : 0, `IndexNow answered ${res.status}`).run();
+}
+
 async function routine(env: Env) {
+  try { await pingIndexNow(env); } catch (e) { console.log('indexnow failed', String(e)); }
   const county = await countySlice(env);
   if (!(county as { skipped?: boolean }).skipped) return county;
   const started = new Date().toISOString().replace('T', ' ').slice(0, 19);
