@@ -56,7 +56,9 @@ if (d.reviewStats.n > 0) sentences.push(`Customers have left ${d.reviewStats.n} 
 if (b.claimed) sentences.push('The owner has verified this listing.');
 const summary = sentences.join(' ');
 const pageTitle = isFood && d.inspections.length ? `${b.name}, ${cityName}: inspections & reviews` : `${b.name}, ${cityName}`;
-const desc = `${b.name} in ${cityName}, FL: ${b.last_inspection_disposition ? `latest state inspection ${fmtDate(b.last_inspection_date)} (${b.last_inspection_disposition}), ` : ''}license record, reviews and contact details.`;
+// Search-result description: the owner's own words when there are any, otherwise the record summary. Cut at a word, about 160 characters.
+const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
+const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : summary);
 const thin = b.source === 'county' && !b.claimed && !b.description && !b.phone && !b.website && d.reviewStats.n === 0 && d.mentions.length === 0;
 Astro.response.headers.set('Cache-Control', 'public, max-age=120');
 ---

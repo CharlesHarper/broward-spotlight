@@ -30,8 +30,11 @@ const facts = [
   stats.closures365 ? `${stats.closures365} ${stats.closures365 === 1 ? 'business has' : 'businesses have'} had a state emergency order in the last 12 months.` : '',
 ].filter(Boolean).join(' ');
 const title = category ? `${categoryLabel(category)} in ${city.name}, FL` : `${city.name}, FL businesses`;
-const desc = `${stats.listings.toLocaleString()} ${city.name} businesses with state inspection results, license records and reviews. ${stats.inspected90} inspections in the last 90 days.`;
-const indexable = stats.listings > 0 && page === 1;
+const desc = category
+  ? `${list.total.toLocaleString()} ${categoryLabel(category).toLowerCase()} listings in ${city.name}, Florida, built from public records, with owner-verified details and customer reviews where available.`
+  : `${stats.listings.toLocaleString()} ${city.name} businesses with state inspection results, license records and reviews. ${stats.inspected90} inspections in the last 90 days.`;
+// A city-and-category view needs enough listings to be worth a search result; this matches the sitemap rule.
+const indexable = page === 1 && (category ? list.total >= 5 : stats.listings > 0);
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
 <Base title={title} description={desc} search city={slug} noindex={!indexable} canonical={`${env(Astro.locals).SITE_URL}/city/${slug}${category ? `?category=${category}` : ''}`}>
