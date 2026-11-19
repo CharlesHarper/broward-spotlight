@@ -16,8 +16,11 @@ const LEGACY: Record<string, string> = {
 export const onRequest = defineMiddleware(async (ctx, next) => {
   const p = ctx.url.pathname;
   const host = ctx.url.hostname;
-  if (host === `www.${MAIN_HOST}` || host === `directory.${MAIN_HOST}`) {
-    return Response.redirect(`https://${MAIN_HOST}${p}${ctx.url.search}`, 301);
+  // The public address is whatever SITE_URL says. Our other hostnames forward to it.
+  const canonicalHost = (() => { try { return new URL(ctx.locals.runtime?.env?.SITE_URL ?? '').hostname; } catch { return ''; } })();
+  const ours = host === MAIN_HOST || host === `www.${MAIN_HOST}` || host === `directory.${MAIN_HOST}`;
+  if (canonicalHost && ours && host !== canonicalHost) {
+    return Response.redirect(`https://${canonicalHost}${p}${ctx.url.search}`, 302);
   }
   const legacy = LEGACY[p.replace(/\/$/, '') || '/'];
   if (legacy && p !== '/') return Response.redirect(new URL(legacy, ctx.url).toString(), 301);

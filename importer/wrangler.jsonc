@@ -20,7 +20,7 @@
     "DBPR_DISTRICT": "2",
     "BROWARD_COUNTY_CODE": "16",
     "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
-    "SITE_URL": "https://browardspotlight.com",
+    "SITE_URL": "https://directory.browardspotlight.com",
     "INVITES_PER_DAY": "25",
     "BTR_URL": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/ArcGIS/rest/services/TaxDatabase2021/FeatureServer/12/query"
   }
