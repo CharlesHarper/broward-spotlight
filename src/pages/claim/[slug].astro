@@ -11,7 +11,7 @@ if (!b) return Astro.rewrite('/404');
     <header class="stack">
       <p class="label">Free for every business</p>
       <h1>Claim {b.name}</h1>
-      <p>Once you're verified you can add your website, hours, photos, description and social links, and reply to reviews. You'll get an Owner verified badge.</p>
+      <p>Once you're verified you can add your phone, website, hours, description and social links, and reply to reviews. You'll get an Owner verified badge.</p>
     </header>
     {b.claimed ? <p class="notice">This listing has already been claimed. If that's a mistake, <a href={`/correction/${b.slug}`}>tell us</a>.</p> : (
       <form method="post" action="/api/claim" class="panel stack">
