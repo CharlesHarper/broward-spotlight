@@ -1,0 +1,31 @@
+---
+import Base from '../../layouts/Base.astro';
+import { CITY_NAMES } from '../../lib/shared';
+---
+<Base title="Claim your free business listing" description="Your Broward County business may already be listed on Broward Spotlight. Find it and claim it free to add your phone, website, hours and photos, and to reply to reviews.">
+  <div class="wrap stack-lg" style="max-width:760px">
+    <header class="stack">
+      <p class="label">Free for every Broward business</p>
+      <h1>Find and claim your listing</h1>
+      <p>Your business is probably already here, built from public records. Claiming it takes about a minute and costs nothing.</p>
+    </header>
+    <form action="/search" method="get" role="search" class="panel stack">
+      <label class="field"><span>Business name</span><input name="q" required placeholder="Type your business name" autocomplete="organization" /></label>
+      <label class="field"><span>City</span>
+        <select name="city"><option value="">All of Broward</option>{Object.entries(CITY_NAMES).map(([s, n]) => <option value={s}>{n}</option>)}</select>
+      </label>
+      <button class="btn btn-primary" type="submit">Find my business</button>
+      <p class="small muted">Open your listing from the results, then tap "Claim this listing". Not listed? <a href="/add-business">Add your business free</a>.</p>
+    </form>
+    <section class="panel panel-sunk stack">
+      <h2>What you get when you claim</h2>
+      <ul style="margin:0;padding-left:20px;display:grid;gap:6px">
+        <li>An Owner verified badge on your listing</li>
+        <li>Your phone number, website, hours and social links shown to customers</li>
+        <li>Your own description of what you do</li>
+        <li>Alerts for new reviews, and the right to reply publicly</li>
+      </ul>
+      <p class="small muted">Claiming is free and always will be. It never changes public records or removes reviews.</p>
+    </section>
+  </div>
+</Base>
