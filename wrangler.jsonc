@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "binding": "ASSETS", "directory": "./dist" },
   "observability": { "enabled": true },
+  "routes": [{ "pattern": "directory.browardspotlight.com", "custom_domain": true }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -16,7 +17,7 @@
     }
   ],
   "vars": {
-    "SITE_URL": "https://browardspotlight.com",
+    "SITE_URL": "https://directory.browardspotlight.com",
     "SITE_NAME": "Broward Spotlight"
   }
   // Secrets (set with `npx wrangler secret put NAME`):
