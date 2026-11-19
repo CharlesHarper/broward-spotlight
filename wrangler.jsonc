@@ -6,7 +6,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "binding": "ASSETS", "directory": "./dist" },
   "observability": { "enabled": true },
-  "routes": [{ "pattern": "directory.browardspotlight.com", "custom_domain": true }],
+  "routes": [
+    // Routes sit in front of the existing (proxied) DNS records. Remove these two lines to hand the main address back to the old GHL site.
+    { "pattern": "browardspotlight.com/*", "zone_name": "browardspotlight.com" },
+    { "pattern": "www.browardspotlight.com/*", "zone_name": "browardspotlight.com" },
+    { "pattern": "directory.browardspotlight.com", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -17,10 +22,11 @@
     }
   ],
   "vars": {
-    "SITE_URL": "https://directory.browardspotlight.com",
+    "SITE_URL": "https://browardspotlight.com",
     "SITE_NAME": "Broward Spotlight"
   }
   // Secrets (set with `npx wrangler secret put NAME`):
   //   ADMIN_PASSWORD   password for /admin (username: admin)
+  //   GOOGLE_MAPS_KEY  Google Maps Embed API key (shows a map on each listing)
   //   GHL_WEBHOOK_URL  HighLevel inbound webhook URL for claim, review and advertising events
 }

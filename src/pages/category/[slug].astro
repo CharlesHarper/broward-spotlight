@@ -24,7 +24,7 @@ const cityLinks = byCity.results.filter((r) => CITY_NAMES[r.city_slug]);
 const title = city ? `${cat.label} in ${CITY_NAMES[city]}, FL` : `${cat.label} in Broward County`;
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title={title} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1}>
+<Base title={title} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1} canonical={`${env(Astro.locals).SITE_URL}${city ? `/city/${city}?category=${cat.slug}` : `/category/${cat.slug}`}`}>
   <div class="wrap stack-lg">
     <header class="stack">
       <p class="label"><a href="/categories">Categories</a></p>

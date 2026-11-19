@@ -3,8 +3,11 @@ import { CATEGORIES } from '../lib/shared';
 export const GET: APIRoute = async ({ locals }) => {
   const e = locals.runtime.env;
   const { results } = await e.DB.prepare(`SELECT c.slug FROM cities c WHERE EXISTS (SELECT 1 FROM businesses b WHERE b.city_slug = c.slug AND b.status = 'active')`).all<{ slug: string }>();
-  const urls = ['/', '/cities', '/categories', '/inspections', '/advertise', '/add-business', '/claim', '/how-it-works',
+  const urls = ['/', '/cities', '/categories', '/inspections', '/advertise', '/add-business', '/claim', '/how-it-works', '/about',
     ...results.map((r) => `/city/${r.slug}`), ...CATEGORIES.map((c) => `/category/${c.slug}`)];
+  const combos = await e.DB.prepare(`SELECT city_slug, category, COUNT(*) AS n FROM businesses WHERE status = 'active' AND city_slug IN (SELECT slug FROM cities)
+    GROUP BY city_slug, category HAVING n >= 5`).all<{ city_slug: string; category: string }>();
+  for (const c of combos.results) urls.push(`/city/${c.city_slug}?category=${c.category}`);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${e.SITE_URL}${u}</loc></url>`).join('')}</urlset>`;
   return new Response(xml, { headers: { 'content-type': 'application/xml', 'cache-control': 'public, max-age=3600' } });
 };

@@ -23,8 +23,7 @@ const webLinks = [
 const showStreet = !!b.address && (!b.hide_street || !!b.claimed);
 const isFood = !!b.dbpr_license || b.category === 'restaurants' || b.category === 'food-trucks';
 const schemaType = b.category === 'restaurants' ? 'Restaurant' : b.category === 'food-trucks' ? 'FoodEstablishment' : b.category === 'beauty' ? 'HealthAndBeautyBusiness' : b.category === 'auto' ? 'AutomotiveBusiness' : b.category === 'home-services' ? 'HomeAndConstructionBusiness' : b.category === 'professional' ? 'ProfessionalService' : 'LocalBusiness';
-const jsonld = {
-  '@context': 'https://schema.org',
+const bizLd = {
   '@type': schemaType,
   name: b.name,
   url: new URL(`/business/${b.slug}`, e.SITE_URL).toString(),
@@ -32,17 +31,35 @@ const jsonld = {
   ...(b.phone ? { telephone: b.phone } : {}),
   ...(b.website || b.facebook || b.instagram ? { sameAs: [b.website, b.facebook, b.instagram].filter(Boolean) } : {}),
 };
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    bizLd,
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Broward County', item: e.SITE_URL },
+      ...(b.city_slug && CITY_NAMES[b.city_slug] ? [{ '@type': 'ListItem', position: 2, name: cityName, item: `${e.SITE_URL}/city/${b.city_slug}` }] : []),
+      { '@type': 'ListItem', position: 3, name: categoryLabel(b.category), item: `${e.SITE_URL}${b.city_slug && CITY_NAMES[b.city_slug] ? `/city/${b.city_slug}?category=${b.category}` : `/category/${b.category}`}` },
+    ] },
+  ],
+};
+const mapSrc = e.GOOGLE_MAPS_KEY && cityName
+  ? `https://www.google.com/maps/embed/v1/place?key=${e.GOOGLE_MAPS_KEY}&q=${encodeURIComponent([b.name, showStreet ? b.address : null, cityName, 'FL', showStreet ? b.zip : null].filter(Boolean).join(', '))}`
+  : null;
+const pageTitle = isFood && d.inspections.length ? `${b.name}, ${cityName}: inspections & reviews` : `${b.name}, ${cityName}`;
 const desc = `${b.name} in ${cityName}, FL: ${b.last_inspection_disposition ? `latest state inspection ${fmtDate(b.last_inspection_date)} (${b.last_inspection_disposition}), ` : ''}license record, reviews and contact details.`;
 const thin = b.source === 'county' && !b.claimed && !b.description && d.reviewStats.n === 0 && d.mentions.length === 0;
 Astro.response.headers.set('Cache-Control', 'public, max-age=120');
 ---
-<Base title={`${b.name}, ${cityName}`} description={desc} search city={b.city_slug} jsonld={jsonld} noindex={thin}>
+<Base title={pageTitle} description={desc} search city={b.city_slug} jsonld={jsonld} noindex={thin}>
   <div class="wrap">
     {msg === 'review' && <p class="notice notice-ok" role="status">Thanks. Your review is in. Check your email to confirm it; we post it once it passes our review policy check.</p>}
     {msg === 'claim' && <p class="notice notice-ok" role="status">Claim received. We verify every owner by contacting the business directly, usually within two business days.</p>}
     {b.status === 'inactive' && b.source === 'dbpr' && <p class="notice notice-warn" role="status">This location no longer appears on the state's list of active food service licenses. It may have closed, moved or changed owners. Its records are kept here for reference.</p>}
     {msg === 'correction' && <p class="notice notice-ok" role="status">Thanks. We'll check that against the source and update the listing if it's wrong.</p>}
 
+    <nav class="label" aria-label="Breadcrumb" style="margin-top:4px">
+      <a href="/">Broward</a>{b.city_slug && CITY_NAMES[b.city_slug] && <> / <a href={`/city/${b.city_slug}`}>{cityName}</a> / <a href={`/city/${b.city_slug}?category=${b.category}`}>{categoryLabel(b.category)}</a></>}
+    </nav>
     <header class="biz-head" style="margin-top:8px">
       <div class="badges">
         {b.claimed ? <span class="badge badge-verified"><Icon name="check" />Owner verified</span> : null}
@@ -138,6 +155,11 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
       </div>
 
       <aside class="biz-side stack">
+        {mapSrc && (
+          <section class="panel" style="padding:0;overflow:hidden">
+            <iframe title={`Map of ${b.name}`} src={mapSrc} width="100%" height="260" style="border:0;display:block" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+          </section>
+        )}
         <section class="panel">
           <h2 style="font-size:18px">On the record</h2>
           <dl class="kv">

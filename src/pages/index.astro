@@ -17,9 +17,18 @@ const [feat, flagged, cities, ad, totals] = await Promise.all([
   db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE status='active') AS biz, (SELECT COUNT(*) FROM inspections) AS insp, (SELECT MAX(date) FROM inspections) AS latest`).first<{ biz: number; insp: number; latest: string | null }>(),
 ]);
 const topCities = cities.filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+const site = env(Astro.locals).SITE_URL;
+const homeLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'WebSite', '@id': `${site}/#website`, url: site, name: 'Broward Spotlight',
+      potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${site}/search?q={search_term_string}` }, 'query-input': 'required name=search_term_string' } },
+    { '@type': 'Organization', '@id': `${site}/#org`, name: 'Broward Spotlight', url: site, logo: `${site}/favicon.svg`, areaServed: 'Broward County, Florida' },
+  ],
+};
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title="Broward Spotlight" description="Search Broward County businesses with the facts on the record: state restaurant inspections, license status, verified owners and real customer reviews.">
+<Base title="Broward County Business Directory & Restaurant Inspections" jsonld={homeLd} description="Search Broward County businesses with the facts on the record: state restaurant inspections, license status, verified owners and real customer reviews.">
   <div class="hero">
     <div class="wrap">
       <p class="label" style="color:var(--spot)">Broward County, on the record</p>
@@ -79,11 +88,20 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 
     <Ad ad={ad} />
 
+    <section>
+      <div class="section-head"><h2>How Broward Spotlight works</h2><a href="/about">About us</a></div>
+      <div class="grid">
+        <div class="card"><h3>Facts from the record</h3><p class="meta">Listings start from Broward County and State of Florida public records, including every restaurant inspection, shown in the state's own words.</p></div>
+        <div class="card"><h3>Owners add the details</h3><p class="meta">Business owners claim their listing free to add their phone, website, hours and story, and to reply to reviews.</p></div>
+        <div class="card"><h3>Customers tell the rest</h3><p class="meta">Real customers leave reviews. We post every genuine one, good or bad, and nobody can pay to change that.</p></div>
+      </div>
+    </section>
+
     <section class="panel panel-sunk">
       <h2>Own a Broward business?</h2>
       <p>Your listing may already be here, built from public records. Claim it for free to add photos, hours and your website, and to answer reviews. Not listed yet? Add it in two minutes.</p>
       <div class="row-actions">
-        <a class="btn btn-primary" href="/search">Find and claim your listing</a>
+        <a class="btn btn-primary" href="/claim">Find and claim your listing</a>
         <a class="btn" href="/add-business">Add your business</a>
       </div>
     </section>

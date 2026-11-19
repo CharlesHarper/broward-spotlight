@@ -1,0 +1,41 @@
+---
+import Base from '../layouts/Base.astro';
+import { env } from '../lib/util';
+const site = env(Astro.locals).SITE_URL;
+const faqs: [string, string][] = [
+  ['What is Broward Spotlight?', 'An independent directory of Broward County businesses. Each listing starts from public records, and owners and customers add to it.'],
+  ['Where does the information come from?', 'Business names, types and locations come from Broward County Local Business Tax records. Restaurant licenses and inspection results come from the Florida Department of Business and Professional Regulation. Phone numbers, websites, hours and descriptions come from owners who claim their listing.'],
+  ['How do I get my business listed?', 'It is probably listed already. Search for it and claim it free. If it is not there, add it in about two minutes from the Add a business page.'],
+  ['Does it cost anything to claim my listing?', 'No. Claiming, the Owner verified badge and replying to reviews are free for every business.'],
+  ['Can a business pay to remove a bad review or an inspection result?', 'No. Paid options only buy labeled placement: Featured spots, Sponsored articles and ads. They never change a record, a review or the order of reviews.'],
+  ['Are any listings sponsored?', 'Some businesses pay for Featured placement or a Sponsored article. Those are always labeled.'],
+  ['Something on a listing is wrong. How do I fix it?', 'Use the "Report a mistake" link on the listing. We check every report against the original source. Owners can also claim the listing and update their own details.'],
+  ['Does a listing mean Broward Spotlight recommends the business?', 'No. A listing is information, not an endorsement. Read the record and the reviews, and decide for yourself.'],
+];
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+};
+---
+<Base title="About Broward Spotlight" description="Broward Spotlight is an independent directory of Broward County businesses built on public records, owner-verified details and real customer reviews." jsonld={jsonld} canonical={`${site}/about`}>
+  <div class="wrap stack-lg" style="max-width:760px">
+    <header class="stack">
+      <p class="label">Local businesses. Real records.</p>
+      <h1>About Broward Spotlight</h1>
+      <p>Some of Broward's best businesses are built on hard work and word of mouth, and plenty of people still haven't heard of them. Broward Spotlight puts every local business in one place with the facts a customer wants before they call, visit or hire.</p>
+      <p>We start with what's on the public record, let owners fill in the details for free, and let customers say how it went. Paid placement is always labeled, and it never touches a record or a review.</p>
+      <p><a href="/how-it-works">Read exactly how we handle sources, reviews and paid placement</a>.</p>
+    </header>
+    <section class="stack">
+      <h2>Frequently asked questions</h2>
+      {faqs.map(([q, a]) => (
+        <div class="panel"><h3>{q}</h3><p>{a}</p></div>
+      ))}
+    </section>
+    <section class="panel panel-sunk stack" id="contact">
+      <h2>Contact</h2>
+      <p>Business owners: <a href="/claim">claim your listing</a> or <a href="/advertise#inquire">ask about advertising</a>. Spotted an error? Use "Report a mistake" on the listing so we know exactly which page you mean.</p>
+    </section>
+  </div>
+</Base>
