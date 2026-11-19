@@ -34,7 +34,7 @@ const bizLd = {
 const jsonld = {
   '@context': 'https://schema.org',
   '@graph': [
-    bizLd,
+    { ...bizLd, get description() { return summary; } },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Broward County', item: e.SITE_URL },
       ...(b.city_slug && CITY_NAMES[b.city_slug] ? [{ '@type': 'ListItem', position: 2, name: cityName, item: `${e.SITE_URL}/city/${b.city_slug}` }] : []),
@@ -45,6 +45,16 @@ const jsonld = {
 const mapSrc = e.GOOGLE_MAPS_KEY && cityName
   ? `https://www.google.com/maps/embed/v1/place?key=${e.GOOGLE_MAPS_KEY}&q=${encodeURIComponent([b.name, showStreet ? b.address : null, cityName, 'FL', showStreet ? b.zip : null].filter(Boolean).join(', '))}`
   : null;
+// A plain-language summary built only from records on this page. Helps people, search engines and AI assistants alike.
+const latest = d.inspections[0];
+const sentences: string[] = [
+  `${b.name} is listed in ${cityName ?? 'Broward County'}, Florida under ${categoryLabel(b.category)}${b.subtype ? ` (${b.subtype.toLowerCase()})` : ''}.`,
+];
+if (b.started_on) sentences.push(`Broward County business tax records list a business start date of ${fmtDate(b.started_on)}.`);
+if (latest) sentences.push(`Its most recent state inspection on file, on ${fmtDate(latest.date)}, ended with the result "${latest.disposition}"${latest.high_priority != null ? `, with ${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'} noted` : ''}. Florida DBPR has ${d.inspections.length} ${d.inspections.length === 1 ? 'inspection' : 'inspections'} on file for this location in the current records.`);
+if (d.reviewStats.n > 0) sentences.push(`Customers have left ${d.reviewStats.n} ${d.reviewStats.n === 1 ? 'review' : 'reviews'} on Broward Spotlight, averaging ${d.reviewStats.avg} out of 5.`);
+if (b.claimed) sentences.push('The owner has verified this listing.');
+const summary = sentences.join(' ');
 const pageTitle = isFood && d.inspections.length ? `${b.name}, ${cityName}: inspections & reviews` : `${b.name}, ${cityName}`;
 const desc = `${b.name} in ${cityName}, FL: ${b.last_inspection_disposition ? `latest state inspection ${fmtDate(b.last_inspection_date)} (${b.last_inspection_disposition}), ` : ''}license record, reviews and contact details.`;
 const thin = b.source === 'county' && !b.claimed && !b.description && !b.phone && !b.website && d.reviewStats.n === 0 && d.mentions.length === 0;
@@ -68,6 +78,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
       <h1>{b.name}</h1>
       <p class="muted">{[b.subtype ?? categoryLabel(b.category), cityName].filter(Boolean).join(' · ')}{d.reviewStats.n > 0 && <> · <span class="stars" aria-label={`${d.reviewStats.avg} out of 5`}>{stars(Math.round(d.reviewStats.avg ?? 0))}</span> {d.reviewStats.avg} ({d.reviewStats.n})</>}</p>
       {showStreet ? <p class="small">{b.address}, {cityName}, FL {b.zip}</p> : <p class="small">{cityName}, FL {b.zip}</p>}
+      <p style="max-width:70ch">{summary}</p>
       <div class="biz-actions">
         {b.phone && <a class="btn btn-primary" href={telHref(b.phone)}><Icon name="phone" />{fmtPhone(b.phone)}</a>}
         {b.website && <a class="btn" href={b.website} target="_blank" rel="noopener"><Icon name="globe" />Website</a>}

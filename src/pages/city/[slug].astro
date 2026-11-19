@@ -23,6 +23,12 @@ const [list, feat, stats, ad] = await Promise.all([
   activeAd(db, 'city', slug),
 ]);
 const okShare = stats.inspected90 ? Math.round(((stats.tones.ok ?? 0) / stats.inspected90) * 100) : null;
+const top3 = stats.categories.slice(0, 3).map((c) => `${categoryLabel(c.category).toLowerCase()} (${c.n.toLocaleString()})`);
+const facts = [
+  `${city.name} has ${stats.listings.toLocaleString()} businesses listed on Broward Spotlight${top3.length ? `. The largest groups are ${top3.join(', ')}` : ''}.`,
+  stats.inspected90 ? `In the last 90 days, Florida inspectors made ${stats.inspected90.toLocaleString()} food-service ${stats.inspected90 === 1 ? 'inspection' : 'inspections'} in ${city.name}; ${okShare}% ended with no further action or a complied call-back.` : '',
+  stats.closures365 ? `${stats.closures365} ${stats.closures365 === 1 ? 'business has' : 'businesses have'} had a state emergency order in the last 12 months.` : '',
+].filter(Boolean).join(' ');
 const title = category ? `${categoryLabel(category)} in ${city.name}, FL` : `${city.name}, FL businesses`;
 const desc = `${stats.listings.toLocaleString()} ${city.name} businesses with state inspection results, license records and reviews. ${stats.inspected90} inspections in the last 90 days.`;
 const indexable = stats.listings > 0 && page === 1;
@@ -34,13 +40,14 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
       <p class="label"><a href="/cities">Cities</a> / Broward County</p>
       <h1>{category ? `${categoryLabel(category)} in ${city.name}` : city.name}</h1>
       {city.intro && <p style="max-width:65ch">{city.intro}</p>}
+      {!category && <p style="max-width:70ch">{facts}</p>}
     </header>
 
     <section aria-label={`${city.name} by the numbers`}>
       <div class="stats">
         <div class="stat"><b>{stats.listings.toLocaleString()}</b><span>Listed businesses</span></div>
         <div class="stat"><b>{stats.inspected90.toLocaleString()}</b><span>State inspections, last 90 days</span></div>
-        <div class="stat"><b>{okShare === null ? '—' : `${okShare}%`}</b><span>Completed with no further action, last 90 days</span></div>
+        <div class="stat"><b>{okShare === null ? '—' : `${okShare}%`}</b><span>No further action or complied call-back, last 90 days</span></div>
         <div class="stat"><b>{stats.closures365}</b><span>Businesses with an emergency order, last 12 months</span></div>
       </div>
       <p class="small muted" style="margin-top:8px">Inspection figures cover food service businesses inspected by Florida DBPR.</p>
