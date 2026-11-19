@@ -6,6 +6,7 @@ const db = env(Astro.locals).DB;
 const id = Number(Astro.url.searchParams.get('id') ?? 0);
 const b: any = id ? await db.prepare(`SELECT * FROM businesses WHERE id = ?`).bind(id).first() : null;
 const mentions = b ? (await db.prepare(`SELECT * FROM mentions WHERE business_id = ? ORDER BY published_on DESC`).bind(b.id).all<any>()).results : [];
+const photos = b ? (await db.prepare(`SELECT id, key, caption, created_at FROM photos WHERE business_id = ? AND status = 'live' ORDER BY id`).bind(b.id).all<any>()).results : [];
 const v = (k: string) => (b?.[k] ?? '') as string;
 ---
 <Base title={b ? `Edit ${b.name}` : 'Add a listing'} noindex>
@@ -40,6 +41,20 @@ const v = (k: string) => (b?.[k] ?? '') as string;
           <input type="hidden" name="action" value="owner_link" /><input type="hidden" name="id" value={b.id} />
           <button class="btn btn-sm">{b.owner_token ? 'Make a new owner link and email it' : 'Mark claimed and email owner link'}</button>
         </form>
+      </section>
+      <section class="stack">
+        <h2>Owner photos</h2>
+        {photos.length ? (
+          <div class="photo-admin">
+            {photos.map((p: any) => (
+              <figure>
+                <a href={`/photo/${p.key}.jpg`} target="_blank" rel="noopener"><img src={`/photo/${p.key}.jpg`} alt={p.caption ?? 'Owner photo'} loading="lazy" /></a>
+                <figcaption class="small muted">{p.caption ?? 'No description'} · {fmtDate(p.created_at)}</figcaption>
+                <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="photo_remove" /><input type="hidden" name="id" value={p.id} /><button class="btn btn-sm">Remove photo</button></form>
+              </figure>
+            ))}
+          </div>
+        ) : <p class="small muted">The owner hasn't added photos.</p>}
       </section>
       <section class="stack">
         <h2>Around the web</h2>

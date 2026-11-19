@@ -86,18 +86,20 @@ export async function getBusiness(db: D1Database, slug: string) {
 }
 
 export async function businessDetail(db: D1Database, b: Business) {
-  const [insp, reviews, mentions, stats] = await db.batch([
+  const [insp, reviews, mentions, stats, photos] = await db.batch([
     db.prepare(`SELECT * FROM inspections WHERE business_id = ? ORDER BY date DESC LIMIT 40`).bind(b.id),
     db.prepare(`SELECT id, business_id, name, rating, body, status, owner_response, owner_response_at, created_at
       FROM reviews WHERE business_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 50`).bind(b.id),
     db.prepare(`SELECT * FROM mentions WHERE business_id = ? ORDER BY published_on DESC LIMIT 20`).bind(b.id),
     db.prepare(`SELECT COUNT(*) AS n, ROUND(AVG(rating), 1) AS avg FROM reviews WHERE business_id = ? AND status = 'approved'`).bind(b.id),
+    db.prepare(`SELECT id, key, width, height, caption FROM photos WHERE business_id = ? AND status = 'live' ORDER BY id LIMIT 6`).bind(b.id),
   ]);
   return {
     inspections: insp.results as unknown as Inspection[],
     reviews: reviews.results as unknown as Review[],
     mentions: mentions.results as unknown as { title: string; url: string; source: string; summary: string | null; published_on: string | null }[],
     reviewStats: stats.results[0] as { n: number; avg: number | null },
+    photos: photos.results as unknown as { id: number; key: string; width: number | null; height: number | null; caption: string | null }[],
   };
 }
 

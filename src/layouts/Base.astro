@@ -10,8 +10,9 @@ interface Props {
   q?: string;
   city?: string | null;
   jsonld?: object | null;
+  image?: string | null;
 }
-const { title, description = 'Broward County businesses on the record: state inspections, licenses, verified owners and real customer reviews.', canonical, noindex = false, search = false, q = '', city = null, jsonld = null } = Astro.props;
+const { title, description = 'Broward County businesses on the record: state inspections, licenses, verified owners and real customer reviews.', canonical, noindex = false, search = false, q = '', city = null, jsonld = null, image = null } = Astro.props;
 const site = Astro.locals.runtime?.env?.SITE_URL ?? 'https://browardspotlight.com';
 const canon = canonical ?? new URL(Astro.url.pathname, site).toString();
 const fullTitle = title === 'Broward Spotlight' ? title : `${title} | Broward Spotlight`;
@@ -29,6 +30,8 @@ const fullTitle = title === 'Broward Spotlight' ? title : `${title} | Broward Sp
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
   <meta property="og:url" content={canon} />
+  {image && <meta property="og:image" content={image} />}
+  {image && <meta name="twitter:card" content="summary_large_image" />}
   <meta name="msvalidate.01" content="AB2045ADB1269FCA6A62C8464F079BF8" />
   <meta name="theme-color" content="#0F2A33" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

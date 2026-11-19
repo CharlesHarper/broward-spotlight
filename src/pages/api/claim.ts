@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { env, str, isEmail, ghl, looksLikeBot } from '../../lib/util';
+import { env, str, isEmail, ghl, stopInviteReminders, looksLikeBot } from '../../lib/util';
 
 export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const e = env(locals);
@@ -24,5 +24,6 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     name, email, phone, role, note, business_name: b.name, business_address: [b.address, b.city].filter(Boolean).join(', '),
     business_url: new URL(`/business/${slug}`, e.SITE_URL).toString(), email_matches_website: !!domainMatch, tags: ['spotlight-claim'],
   });
+  await stopInviteReminders(e, b.id);
   return redirect(`/business/${slug}?sent=claim`, 303);
 };

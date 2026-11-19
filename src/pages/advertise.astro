@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import BotFields from '../components/BotFields.astro';
 const sent = Astro.url.searchParams.get('sent');
 const tiers = [
-  { name: 'Claimed listing', price: 'Free', per: '', items: ['Owner verified badge', 'Add phone, website, hours and description', 'Reply to every review', 'Get notified about new reviews'], cta: 'Find your listing', href: '/search', spot: false },
+  { name: 'Claimed listing', price: 'Free', per: '', items: ['Owner verified badge', 'Add phone, website, hours, photos and description', 'Reply to every review', 'Get notified about new reviews'], cta: 'Find your listing', href: '/search', spot: false },
   { name: 'Featured', price: '$79', per: '/month', items: ['Top of your city and category pages, labeled Featured', 'Shown in matching searches', 'Includes everything in a claimed listing', 'Cancel any month'], cta: 'Get Featured', href: '#inquire', spot: true },
   { name: 'Spotlight article', price: '$249', per: ' one time', items: ['A researched feature story about your business', 'Labeled Sponsored, written by our editors', 'Yours to share on social and your site', 'Stays up as long as the site does'], cta: 'Book a Spotlight', href: '#inquire', spot: false },
   { name: 'Display ad', price: '$99', per: '/month', items: ['Banner on the city or category pages you pick', 'Labeled Advertisement', 'Links to your site or offer', 'Swap creative any time'], cta: 'Run an ad', href: '#inquire', spot: false },

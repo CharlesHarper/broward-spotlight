@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { env, str, token, ghl, normUrl, isEmail } from '../../../lib/util';
+import { env, str, token, ghl, normUrl, isEmail, stopInviteReminders } from '../../../lib/util';
 import { CATEGORIES, CITY_NAMES, slugify } from '../../../lib/shared';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -18,6 +18,9 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     const b = await db.prepare(`UPDATE businesses SET claimed = 1, owner_token = ?, owner_email = ?, updated_at = datetime('now') WHERE id = ? RETURNING name, slug`)
       .bind(t, email, businessId).first<{ name: string; slug: string }>();
     if (b) await ghl(e, 'owner_link', { email, name, business_name: b.name, owner_url: site(`/owner/${t}`), business_url: site(`/business/${b.slug}`), tags: ['spotlight-owner'] });
+    // If we invited a different address for this business, stop its reminders too.
+    const inv = await db.prepare(`SELECT contact_email FROM businesses WHERE id = ?`).bind(businessId).first<{ contact_email: string | null }>();
+    if (inv?.contact_email && inv.contact_email.toLowerCase() !== email.toLowerCase()) await stopInviteReminders(e, businessId);
     return t;
   }
 
@@ -53,6 +56,11 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     case 'business_reject':
       await db.prepare(`UPDATE businesses SET status = 'hidden' WHERE id = ?`).bind(id).run();
       return back('Listing hidden.');
+    case 'photo_remove': {
+      const p = await db.prepare(`UPDATE photos SET status = 'removed' WHERE id = ? RETURNING business_id`).bind(id).first<{ business_id: number }>();
+      if (p) await db.prepare(`DELETE FROM photo_data WHERE photo_id = ?`).bind(id).run();
+      return redirect(`/admin/business?id=${p?.business_id ?? ''}`, 303);
+    }
     case 'lead_done':
       await db.prepare(`UPDATE leads SET status = 'done' WHERE id = ?`).bind(id).run();
       return back('Marked handled.');

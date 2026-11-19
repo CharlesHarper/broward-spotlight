@@ -83,3 +83,11 @@ export function mapsUrl(name: string, address?: string | null, city?: string | n
   const q = [name, address, city, 'FL'].filter(Boolean).join(', ');
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
+
+/** When someone claims a listing, tell HighLevel so the invitation reminders stop for the address we invited. */
+export async function stopInviteReminders(e: Env, businessId: number) {
+  const b = await e.DB.prepare(`SELECT name, slug, contact_email, invited_at FROM businesses WHERE id = ?`).bind(businessId)
+    .first<{ name: string; slug: string; contact_email: string | null; invited_at: string | null }>();
+  if (!b?.contact_email || !b.invited_at) return false;
+  return ghl(e, 'listing_claimed', { email: b.contact_email, business_name: b.name, business_url: new URL(`/business/${b.slug}`, e.SITE_URL).toString(), tags: ['spotlight-owner'] });
+}
