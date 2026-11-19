@@ -29,7 +29,10 @@ export function isoDate(s: string | undefined): string | null {
 const int = (s: string | undefined) => { const n = parseInt((s ?? '').trim(), 10); return Number.isFinite(n) ? n : null; };
 const clean = (s: string | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
 /** The license file writes numbers with a letter prefix (SEA1600567); inspections without (1600567). Compare digits. */
-const lic = (s: string | undefined) => clean(s).toUpperCase().replace(/^[A-Z]+/, '');
+const lic = (type: string | undefined, s: string | undefined) => {
+  const digits = clean(s).toUpperCase().replace(/^[A-Z]+/, '');
+  return digits ? `${clean(type) || '0'}-${digits}` : '';
+};
 
 async function fetchCsv(url: string) {
   const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/csv,*/*' } });
@@ -61,13 +64,13 @@ export async function importLicenses(env: Env, runStart: string) {
   const pending: D1PreparedStatement[] = [];
   const ranks = new Map<string, number>();
   let read = 0, kept = 0, sample = '';
-  let cols = { name: 14, addr: 16, city: 19, zip: 21, county: 22, phone: 12, holder: 2, rank: 3, license: 26, status: 27, expires: 29, seats: 31 };
+  let cols = { type: 1, name: 14, addr: 16, city: 19, zip: 21, county: 22, phone: 12, holder: 2, rank: 3, license: 26, status: 27, expires: 29, seats: 31 };
   for await (const row of csvRows(await fetchCsv(url))) {
     if (read === 0 && row.some((c) => /license number/i.test(c))) {
       // Header row present: map by name.
       const idx = (re: RegExp, fb: number) => { const i = row.findIndex((c) => re.test(c)); return i >= 0 ? i : fb; };
       cols = {
-        name: idx(/^business name|location name|dba/i, cols.name), addr: idx(/location (street )?address( line)? ?1/i, cols.addr),
+        type: idx(/license type/i, cols.type), name: idx(/^business name|location name|dba/i, cols.name), addr: idx(/location (street )?address( line)? ?1/i, cols.addr),
         city: idx(/location city/i, cols.city), zip: idx(/location zip/i, cols.zip), county: idx(/location county/i, cols.county),
         phone: idx(/primary telephone/i, cols.phone), holder: idx(/licensee name/i, cols.holder), rank: idx(/rank code/i, cols.rank),
         license: idx(/license number/i, cols.license), status: idx(/primary status/i, cols.status), expires: idx(/expir/i, cols.expires),
@@ -77,7 +80,7 @@ export async function importLicenses(env: Env, runStart: string) {
       continue;
     }
     read++;
-    const license = lic(row[cols.license]);
+    const license = lic(row[cols.type], row[cols.license]);
     if (!license) continue;
     const city = normalizeCity(row[cols.city]);
     const isBroward = clean(row[cols.county]) === env.BROWARD_COUNTY_CODE || (city && CITY_NAMES[city.slug]);
@@ -136,7 +139,7 @@ export async function importInspections(env: Env, runStart: string) {
     if (read === 1 && row.some((c) => /license number|county name/i.test(c))) continue; // header
     const county = clean(row[2]).toUpperCase();
     if (!county.includes('BROWARD')) continue;
-    const license = lic(row[4]);
+    const license = lic(row[3], row[4]);
     const date = isoDate(row[14]);
     if (!license || !date) continue;
     if (!known.has(license)) {
