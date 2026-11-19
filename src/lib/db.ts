@@ -10,6 +10,7 @@ export interface Business {
   claimed: number; status: string; featured?: number;
   btr_account: number | null; btr_category: string | null; started_on: string | null; hide_street: number;
   lat: number | null; lng: number | null; description_len?: number;
+  osm_id: string | null; website_source: string | null;
 }
 export interface Inspection {
   id: number; visit_id: string; date: string; type: string | null; disposition: string | null; tone: Tone;

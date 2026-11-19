@@ -47,7 +47,7 @@ const mapSrc = e.GOOGLE_MAPS_KEY && cityName
   : null;
 const pageTitle = isFood && d.inspections.length ? `${b.name}, ${cityName}: inspections & reviews` : `${b.name}, ${cityName}`;
 const desc = `${b.name} in ${cityName}, FL: ${b.last_inspection_disposition ? `latest state inspection ${fmtDate(b.last_inspection_date)} (${b.last_inspection_disposition}), ` : ''}license record, reviews and contact details.`;
-const thin = b.source === 'county' && !b.claimed && !b.description && d.reviewStats.n === 0 && d.mentions.length === 0;
+const thin = b.source === 'county' && !b.claimed && !b.description && !b.phone && !b.website && d.reviewStats.n === 0 && d.mentions.length === 0;
 Astro.response.headers.set('Cache-Control', 'public, max-age=120');
 ---
 <Base title={pageTitle} description={desc} search city={b.city_slug} jsonld={jsonld} noindex={thin}>
@@ -176,6 +176,8 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
             {b.instagram && <><dt>Instagram</dt><dd><a href={b.instagram} target="_blank" rel="noopener">Profile</a></dd></>}
           </dl>
           {b.btr_account && <p class="small muted">Source: Broward County Local Business Tax records.</p>}
+          {b.osm_id && !b.claimed && <p class="small muted">Some contact details and hours from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>.</p>}
+          {b.website_source === 'auto' && !b.claimed && <p class="small muted">Website matched automatically. <a href={`/correction/${b.slug}`}>Wrong site?</a></p>}
           {b.dbpr_license && <a class="small" href="https://www.myfloridalicense.com/wl11.asp?mode=0" target="_blank" rel="noopener">Verify this license with the state</a>}
         </section>
 

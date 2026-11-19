@@ -4,6 +4,7 @@
 
 import { csvRows } from './csv';
 import { importCountySlice } from './county';
+import { enrichFromOsm, enrichFromWebsites, sendClaimInvites } from './enrich';
 import { normalizeCity, titleCase, slugify, dispositionTone, dbprRank, CITY_NAMES } from '../../src/lib/shared';
 
 interface Env {
@@ -13,6 +14,10 @@ interface Env {
   BROWARD_COUNTY_CODE: string;  // county code on the license file
   IMPORT_KEY?: string;
   BTR_URL: string;               // Broward County Local Business Tax feature service query URL
+  OVERPASS_URL: string;
+  SITE_URL: string;
+  GHL_WEBHOOK_URL?: string;
+  INVITES_PER_DAY?: string;
 }
 
 const BATCH = 80;
@@ -202,6 +207,23 @@ async function countySlice(env: Env) {
   return logRun(env.DB, 'county-business-tax', started, () => importCountySlice(env));
 }
 
+/** Every 20 minutes: county records until the pass is done, then enrichment and claim invitations. */
+async function routine(env: Env) {
+  const county = await countySlice(env);
+  if (!(county as { skipped?: boolean }).skipped) return county;
+  const started = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const osmAt = await env.DB.prepare(`SELECT value FROM import_state WHERE key = 'osm_done_at'`).first<{ value: string }>();
+  if (!osmAt || Date.now() - Date.parse(osmAt.value) > 30 * 864e5) {
+    const r = await logRun(env.DB, 'openstreetmap', started, () => enrichFromOsm(env));
+    await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES ('osm_done_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')`).bind(new Date().toISOString()).run();
+    return r;
+  }
+  const sites = await logRun(env.DB, 'website-reader', started, () => enrichFromWebsites(env));
+  const inv = await sendClaimInvites(env);
+  if (inv.kept) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('claim-invites', ?, datetime('now'), ?, ?, ?)`).bind(started, inv.read, inv.kept, inv.note).run();
+  return { sites, inv };
+}
+
 export default {
   async scheduled(c: ScheduledController, env: Env, ctx: ExecutionContext) {
     if (c.cron === WEEKLY_DBPR) return ctx.waitUntil(runAll(env));
@@ -209,13 +231,13 @@ export default {
     const done = await env.DB.prepare(`SELECT 1 FROM import_runs WHERE kind = 'dbpr-inspections' AND finished_at IS NOT NULL AND note NOT LIKE 'FAILED%' LIMIT 1`).first();
     const running = await env.DB.prepare(`SELECT 1 FROM import_runs WHERE finished_at IS NULL AND started_at > datetime('now', '-30 minutes') LIMIT 1`).first();
     if (running) return;
-    ctx.waitUntil(done ? countySlice(env) : runAll(env));
+    ctx.waitUntil(done ? routine(env) : runAll(env));
   },
   async fetch(req: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(req.url);
     if (req.method === 'POST' && (url.pathname === '/run' || url.pathname === '/run-county')) {
       if (!env.IMPORT_KEY || req.headers.get('x-import-key') !== env.IMPORT_KEY) return new Response('Forbidden', { status: 403 });
-      const job = url.pathname === '/run' ? () => runAll(env) : () => countySlice(env);
+      const job = url.pathname === '/run' ? () => runAll(env) : () => routine(env);
       if (url.searchParams.get('wait')) return Response.json(await job());
       ctx.waitUntil(job());
       return new Response('Import started. Check /admin for results in a few minutes.');

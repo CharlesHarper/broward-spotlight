@@ -19,8 +19,12 @@
     "DBPR_BASE": "https://www2.myfloridalicense.com/sto/file_download/extracts",
     "DBPR_DISTRICT": "2",
     "BROWARD_COUNTY_CODE": "16",
+    "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
+    "SITE_URL": "https://browardspotlight.com",
+    "INVITES_PER_DAY": "25",
     "BTR_URL": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/ArcGIS/rest/services/TaxDatabase2021/FeatureServer/12/query"
   }
+  // Secret: GHL_WEBHOOK_URL turns on automatic claim invitations (same value as on the website worker).
   // Secret: IMPORT_KEY (any long random string) lets you start an import by hand:
   //   curl -X POST -H "x-import-key: YOUR_KEY" https://broward-spotlight-importer.<you>.workers.dev/run
 }
