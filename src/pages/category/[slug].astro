@@ -12,7 +12,9 @@ const db = env(Astro.locals).DB;
 const cat = CATEGORIES.find((c) => c.slug === Astro.params.slug);
 if (!cat) return Astro.rewrite('/404');
 const cityParam = Astro.url.searchParams.get('city');
-const city = cityParam && CITY_NAMES[cityParam] ? cityParam : null;
+// One category in one city lives at /city/<city>/<category>; the old ?city= form forwards there.
+if (cityParam && CITY_NAMES[cityParam]) return Astro.redirect(`/city/${cityParam}/${cat.slug}`, 301);
+const city: string | null = null;
 const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
 const [list, feat, ad, byCity] = await Promise.all([
   listBusinesses(db, { category: cat.slug, city, page }),
@@ -24,7 +26,7 @@ const cityLinks = byCity.results.filter((r) => CITY_NAMES[r.city_slug]);
 const title = city ? `${cat.label} in ${CITY_NAMES[city]}, FL` : `${cat.label} in Broward County`;
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title={title} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1} canonical={`${env(Astro.locals).SITE_URL}${city ? `/city/${city}?category=${cat.slug}` : `/category/${cat.slug}`}`}>
+<Base title={title} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1} canonical={`${env(Astro.locals).SITE_URL}/category/${cat.slug}`}>
   <div class="wrap stack-lg">
     <header class="stack">
       <p class="label"><a href="/categories">Categories</a></p>
@@ -34,7 +36,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
     {cityLinks.length > 0 && (
       <nav class="chips" aria-label="Cities">
         <a class="chip" href={`/category/${cat.slug}`} aria-current={!city ? 'page' : undefined}>All of Broward</a>
-        {cityLinks.map((r) => <a class="chip" href={`/category/${cat.slug}?city=${r.city_slug}`} aria-current={city === r.city_slug ? 'page' : undefined}>{CITY_NAMES[r.city_slug]} <span class="n">{r.n.toLocaleString()}</span></a>)}
+        {cityLinks.map((r) => <a class="chip" href={`/city/${r.city_slug}/${cat.slug}`}>{CITY_NAMES[r.city_slug]} <span class="n">{r.n.toLocaleString()}</span></a>)}
       </nav>
     )}
     <Featured items={feat} />

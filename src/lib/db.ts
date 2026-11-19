@@ -103,6 +103,15 @@ export async function businessDetail(db: D1Database, b: Business) {
   };
 }
 
+/** Other listings of the same kind in the same city. Fuller listings first, then the nearest neighbours so every page links to different ones. */
+export async function related(db: D1Database, b: Business, limit = 6) {
+  if (!b.city_slug) return [];
+  const { results } = await db.prepare(`SELECT * FROM businesses WHERE city_slug = ?1 AND category = ?2 AND status = 'active' AND id != ?3
+    ORDER BY claimed DESC, (website IS NOT NULL) DESC, (phone IS NOT NULL) DESC, (last_inspection_date IS NOT NULL) DESC, ABS(id - ?3) LIMIT ?4`)
+    .bind(b.city_slug, b.category, b.id, limit).all<Business>();
+  return results;
+}
+
 export async function cityStats(db: D1Database, city: string) {
   const since90 = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
   const since365 = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);

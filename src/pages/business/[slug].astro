@@ -3,7 +3,8 @@ import Base from '../../layouts/Base.astro';
 import Status from '../../components/Status.astro';
 import Icon from '../../components/Icon.astro';
 import BotFields from '../../components/BotFields.astro';
-import { getBusiness, businessDetail } from '../../lib/db';
+import { getBusiness, businessDetail, related } from '../../lib/db';
+import ListingCard from '../../components/ListingCard.astro';
 import { categoryLabel, CITY_NAMES, titleCase } from '../../lib/shared';
 import { env, fmtDate, fmtPhone, telHref, mapsUrl } from '../../lib/util';
 
@@ -39,7 +40,7 @@ const jsonld = {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Broward County', item: e.SITE_URL },
       ...(b.city_slug && CITY_NAMES[b.city_slug] ? [{ '@type': 'ListItem', position: 2, name: cityName, item: `${e.SITE_URL}/city/${b.city_slug}` }] : []),
-      { '@type': 'ListItem', position: 3, name: categoryLabel(b.category), item: `${e.SITE_URL}${b.city_slug && CITY_NAMES[b.city_slug] ? `/city/${b.city_slug}?category=${b.category}` : `/category/${b.category}`}` },
+      { '@type': 'ListItem', position: 3, name: categoryLabel(b.category), item: `${e.SITE_URL}${b.city_slug && CITY_NAMES[b.city_slug] ? `/city/${b.city_slug}/${b.category}` : `/category/${b.category}`}` },
     ] },
   ],
 };
@@ -59,7 +60,11 @@ const summary = sentences.join(' ');
 const site = env(Astro.locals).SITE_URL;
 const photoUrl = (k: string) => `/photo/${k}.jpg`;
 const photoAlt = (p: { caption: string | null }, n: number) => p.caption || `${b.name}${cityName ? ` in ${cityName}` : ''}, photo ${n} from the owner`;
-const pageTitle = isFood && d.inspections.length ? `${b.name}, ${cityName}: inspections & reviews` : `${b.name}, ${cityName}`;
+const more = await related(env(Astro.locals).DB, b);
+const typeLabel = b.subtype ?? categoryLabel(b.category);
+const baseTitle = `${b.name}, ${cityName}`;
+const pageTitle = isFood && d.inspections.length ? `${baseTitle}: inspections & reviews`
+  : (baseTitle.length + typeLabel.length <= 46 ? `${baseTitle} – ${typeLabel}` : baseTitle);
 // Search-result description: the owner's own words when there are any, otherwise the record summary. Cut at a word, about 160 characters.
 const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
 const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : summary);
@@ -74,7 +79,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
     {msg === 'correction' && <p class="notice notice-ok" role="status">Thanks. We'll check that against the source and update the listing if it's wrong.</p>}
 
     <nav class="label" aria-label="Breadcrumb" style="margin-top:4px">
-      <a href="/">Broward</a>{b.city_slug && CITY_NAMES[b.city_slug] && <> / <a href={`/city/${b.city_slug}`}>{cityName}</a> / <a href={`/city/${b.city_slug}?category=${b.category}`}>{categoryLabel(b.category)}</a></>}
+      <a href="/">Broward</a>{b.city_slug && CITY_NAMES[b.city_slug] && <> / <a href={`/city/${b.city_slug}`}>{cityName}</a> / <a href={`/city/${b.city_slug}/${b.category}`}>{categoryLabel(b.category)}</a></>}
     </nav>
     <header class="biz-head" style="margin-top:8px">
       <div class="badges">
@@ -237,5 +242,11 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
         <a class="small" href={`/correction/${b.slug}`}>Report a mistake on this page</a>
       </aside>
     </div>
+    {more.length > 0 && b.city_slug && (
+      <section style="margin-top:40px">
+        <div class="section-head"><h2>More {categoryLabel(b.category).toLowerCase()} in {cityName}</h2><a href={`/city/${b.city_slug}/${b.category}`}>See all</a></div>
+        <div class="grid">{more.map((m) => <ListingCard b={m} />)}</div>
+      </section>
+    )}
   </div>
 </Base>

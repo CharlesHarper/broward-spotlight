@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ locals }) => {
 ## URL patterns
 - A business: ${s}/business/{name-city}
 - A city: ${s}/city/{city}
-- One kind of business in a city: ${s}/city/{city}?category={category}
+- One kind of business in a city: ${s}/city/{city}/{category}
 - Search: ${s}/search?q={words}&city={city}
 
 ## Cities
