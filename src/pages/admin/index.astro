@@ -19,6 +19,7 @@ const R = reviews.results as any[], C = claims.results as any[], P = pendingBiz.
 const found = q ? (await db.prepare(`SELECT id, slug, name, city, category, claimed, status FROM businesses WHERE name LIKE ? ORDER BY name LIMIT 30`).bind(`%${q}%`).all<any>()).results : [];
 const placements = tab === 'money' ? (await db.prepare(`SELECT p.*, b.name, b.slug FROM placements p JOIN businesses b ON b.id = p.business_id ORDER BY p.ends_on DESC LIMIT 50`).all<any>()).results : [];
 const ads = tab === 'money' ? (await db.prepare(`SELECT * FROM ads ORDER BY ends_on DESC LIMIT 50`).all<any>()).results : [];
+const orders = tab === 'money' ? (await db.prepare(`SELECT * FROM orders WHERE status != 'pending' OR created_at >= datetime('now', '-2 days') ORDER BY id DESC LIMIT 60`).all<any>()).results : [];
 const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER BY name`).all<any>()).results : [];
 ---
 <Base title="Admin" noindex>
@@ -120,6 +121,12 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER 
 
     {tab === 'money' && <>
       <section class="stack">
+        <h2>Orders</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>What</th><th>Business</th><th>Email</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody>{orders.map((o: any) => <tr><td class="record">{o.created_at.slice(0, 10)}</td><td>{o.kind}</td><td>{o.business_name}</td><td>{o.email ?? ''}</td><td class="record">${(o.amount_cents / 100).toFixed(0)}</td><td><a href={`/order/${o.token}`}>{o.status}{o.paid_through ? ` · through ${o.paid_through}` : ''}</a></td></tr>)}</tbody>
+        </table></div>
+        {orders.length === 0 && <p class="small muted">No orders yet.</p>}
         <h2>Add a Featured placement</h2>
         <form method="post" action="/api/admin/action" class="panel stack">
           <input type="hidden" name="action" value="placement_add" />

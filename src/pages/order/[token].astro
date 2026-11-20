@@ -1,0 +1,101 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env, fmtDate } from '../../lib/util';
+import { PLANS, isPlan, money } from '../../lib/stripe';
+import { CITY_NAMES, categoryLabel } from '../../lib/shared';
+
+const e = env(Astro.locals);
+const o = await e.DB.prepare(`SELECT * FROM orders WHERE token = ?`).bind(Astro.params.token).first<any>();
+if (!o || !isPlan(o.kind)) return new Response('Order not found.', { status: 404 });
+const P = PLANS[o.kind as keyof typeof PLANS];
+const ad = o.ad_id ? await e.DB.prepare(`SELECT * FROM ads WHERE id = ?`).bind(o.ad_id).first<any>() : null;
+const biz = o.business_id ? await e.DB.prepare(`SELECT slug, name FROM businesses WHERE id = ?`).bind(o.business_id).first<{ slug: string; name: string }>() : null;
+const justPaid = Astro.url.searchParams.has('paid');
+const portalFailed = Astro.url.searchParams.get('portal') === '0';
+const where = o.kind === 'featured' ? `${categoryLabel(o.category ?? '')} in ${o.city_slug ? CITY_NAMES[o.city_slug] : 'Broward County'}`
+  : o.kind === 'ad' ? (o.ad_slot === 'home' ? 'Home page' : o.ad_scope ? `${o.ad_slot === 'city' ? CITY_NAMES[o.ad_scope] : categoryLabel(o.ad_scope)} pages` : `All ${o.ad_slot} pages`) : null;
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<Base title={`Your ${P.label} order`} noindex>
+  <div class="wrap stack-lg" style="max-width:760px">
+    <header class="stack">
+      <p class="label">Order · keep this link private</p>
+      <h1>{P.label}{o.business_name ? ` for ${o.business_name}` : ''}</h1>
+      <p class="muted">{money(o.amount_cents)}{P.monthly ? ' a month' : ''}{where ? ` · ${where}` : ''}</p>
+    </header>
+
+    {o.status === 'pending' && (
+      <p class="notice" role="status">{justPaid ? 'Payment received. We are confirming it with Stripe; this page updates within a minute. Refresh to check.' : 'This order has not been paid yet.'}</p>
+    )}
+    {o.status === 'canceled' && <p class="notice" role="status">This subscription has been canceled.</p>}
+
+    {o.status === 'paid' && o.kind === 'featured' && (
+      <section class="panel stack">
+        <h2>You're Featured</h2>
+        <p>{o.business_name} now shows in the labeled Featured spot on {where} pages{o.paid_through ? `, paid through ${fmtDate(o.paid_through)}` : ''}. It renews monthly until you cancel.</p>
+        {biz && <a class="btn btn-primary" href={`/city/${o.city_slug ?? ''}${o.city_slug ? `/${o.category}` : ''}`}>See it live</a>}
+      </section>
+    )}
+
+    {o.status === 'paid' && o.kind === 'spotlight' && (
+      <section class="panel stack">
+        <h2>Your Spotlight article is booked</h2>
+        <p>Our editors will research {o.business_name} using your listing, website and public records, and email you at {o.email ?? 'the address you paid with'} with any questions. The article is labeled Sponsored and links to your listing. Most go live within 7 business days.</p>
+      </section>
+    )}
+
+    {o.status === 'paid' && o.kind === 'ad' && (
+      <section class="panel stack" id="banner">
+        <h2>{ad ? 'Your ad is live' : 'Upload your banner'}</h2>
+        {ad ? <>
+          <p>Showing on {where} through {fmtDate(ad.ends_on)}, labeled Advertisement, linking to <a href={ad.link_url} target="_blank" rel="noopener">{ad.link_url}</a>.</p>
+          <img src={ad.image_url} alt={ad.alt} style="width:100%;border-radius:var(--r-md);display:block" />
+          <p class="small muted">Swap the image any time below.</p>
+        </> : <p>Your ad goes live as soon as you upload an image. A wide banner works best: about 1200 × 300 pixels. Keep text large, since many people see it on a phone.</p>}
+        <form id="ad-form" class="stack" data-order={o.token}>
+          <label class="field"><span>Banner image</span><input name="file" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
+          <label class="field"><span>Describe the image (read aloud for people using screen readers)</span><input name="alt" maxlength="200" value={ad?.alt ?? ''} placeholder={`e.g. ${o.business_name}: 20% off your first visit`} /></label>
+          <button class="btn btn-primary" type="submit">{ad ? 'Replace banner' : 'Upload and go live'}</button>
+          <p class="small" id="ad-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    )}
+
+    {o.stripe_customer_id && P.monthly && (
+      <section class="panel panel-sunk stack">
+        <h2 style="font-size:18px">Billing</h2>
+        <p class="small">Update your card, download receipts or cancel on Stripe's secure page. If you cancel, your spot stays up through the period you've paid for.</p>
+        {portalFailed && <p class="notice small">The billing page didn't open. Reply to your receipt email and we'll take care of it.</p>}
+        <form method="post" action="/api/billing-portal"><input type="hidden" name="order" value={o.token} /><button class="btn" type="submit">Manage billing</button></form>
+      </section>
+    )}
+    <p class="small muted">Paid placement never changes inspection records, license records or reviews. <a href="/how-it-works">How Broward Spotlight works</a></p>
+  </div>
+</Base>
+<script>
+  const form = document.getElementById('ad-form') as HTMLFormElement | null;
+  if (form) {
+    const status = document.getElementById('ad-status')!;
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const input = form.elements.namedItem('file') as HTMLInputElement;
+      const file = input.files?.[0];
+      if (!file) return;
+      status.textContent = 'Uploading…';
+      try {
+        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, 2000 / bmp.width);
+        const c = document.createElement('canvas');
+        c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+        const g = c.getContext('2d')!; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+        let q = 0.88, blob: Blob | null = null;
+        do { blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', q)); q -= 0.12; } while (blob && blob.size > 900_000 && q > 0.35);
+        const fd = new FormData();
+        fd.set('order', form.dataset.order!); fd.set('alt', (form.elements.namedItem('alt') as HTMLInputElement).value); fd.set('file', blob!, 'banner.jpg');
+        const out = await (await fetch('/api/order-ad', { method: 'POST', body: fd })).json();
+        if (!out.ok) throw new Error(out.error);
+        location.reload();
+      } catch (err) { status.textContent = err instanceof Error ? err.message : 'Upload failed.'; }
+    });
+  }
+</script>

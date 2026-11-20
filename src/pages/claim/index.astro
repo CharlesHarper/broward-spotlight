@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { CITY_NAMES } from '../../lib/shared';
+const wants = Astro.url.searchParams.get('for');
 ---
 <Base title="Claim your free business listing" description="Your Broward County business may already be listed on Broward Spotlight. Find it and claim it free to add your phone, website, hours and photos, and to reply to reviews.">
   <div class="wrap stack-lg" style="max-width:760px">
@@ -9,6 +10,7 @@ import { CITY_NAMES } from '../../lib/shared';
       <h1>Find and claim your listing</h1>
       <p>Your business is probably already here, built from public records. Claiming it takes about a minute and costs nothing.</p>
     </header>
+    {(wants === 'featured' || wants === 'spotlight') && <p class="notice" role="status">Step 1 is claiming your listing (free). Once you're verified, your owner page has the {wants === 'featured' ? 'Get Featured' : 'Book a Spotlight'} button. Already claimed? Open the owner link we emailed you.</p>}
     <form action="/search" method="get" role="search" class="panel stack">
       <label class="field"><span>Business name</span><input name="q" required placeholder="Type your business name" autocomplete="organization" /></label>
       <label class="field"><span>City</span>

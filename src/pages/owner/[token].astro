@@ -3,6 +3,8 @@ import Base from '../../layouts/Base.astro';
 import { env, fmtDate } from '../../lib/util';
 import type { Business, Review } from '../../lib/db';
 import { livePhotos, MAX_PHOTOS } from '../../lib/photos';
+import { PLANS, money, stripeReady } from '../../lib/stripe';
+import { CITY_NAMES, categoryLabel } from '../../lib/shared';
 const e = env(Astro.locals);
 const b = await e.DB.prepare(`SELECT * FROM businesses WHERE owner_token = ?`).bind(Astro.params.token).first<Business>();
 if (!b) return new Response('This owner link is not valid. Ask us for a new one.', { status: 404 });
@@ -11,6 +13,12 @@ const saved = Astro.url.searchParams.get('saved');
 const photos = await livePhotos(e.DB, b.id);
 const room = MAX_PHOTOS - photos.length;
 const t = Astro.params.token;
+const { results: orders } = await e.DB.prepare(`SELECT token, kind, status, paid_through FROM orders WHERE business_id = ? AND status = 'paid' ORDER BY id DESC`).bind(b.id).all<{ token: string; kind: string; status: string; paid_through: string | null }>();
+const liveFeatured = orders.find((o) => o.kind === 'featured' && (o.paid_through ?? '') >= new Date().toISOString().slice(0, 10));
+const spotlightBooked = orders.find((o) => o.kind === 'spotlight');
+const canPay = stripeReady(e);
+const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : 'Broward County'}`;
+const canceled = Astro.url.searchParams.has('canceled');
 ---
 <Base title={`Manage ${b.name}`} noindex>
   <div class="wrap stack-lg" style="max-width:820px">
@@ -59,6 +67,29 @@ const t = Astro.params.token;
           <p class="small" id="photo-status" role="status" aria-live="polite"></p>
         </form>
       ) : <p class="notice">You've reached {MAX_PHOTOS} photos. Remove one to add another.</p>}
+    </section>
+    <section class="panel stack" id="promote">
+      <h2>Promote your listing</h2>
+      {canceled && <p class="notice small">Checkout was canceled. Nothing was charged.</p>}
+      <div class="tiers" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+        <div class="panel tier">
+          <h3 style="font-size:17px">{PLANS.featured.label}</h3>
+          <p><span class="price">{money(PLANS.featured.cents)}</span><span class="muted">/month</span></p>
+          <p class="small">Your listing at the top of {featuredWhere} pages and matching searches, labeled Featured. Cancel any time.</p>
+          {liveFeatured ? <a class="btn" href={`/order/${liveFeatured.token}`}>Featured through {fmtDate(liveFeatured.paid_through)} · manage</a>
+            : canPay ? <form method="post" action="/api/checkout"><input type="hidden" name="plan" value="featured" /><input type="hidden" name="token" value={t} /><button class="btn btn-spot" type="submit">Get Featured</button></form>
+            : <a class="btn btn-spot" href="/advertise#inquire">Ask about Featured</a>}
+        </div>
+        <div class="panel tier">
+          <h3 style="font-size:17px">{PLANS.spotlight.label}</h3>
+          <p><span class="price">{money(PLANS.spotlight.cents)}</span><span class="muted"> one time</span></p>
+          <p class="small">A researched feature story about {b.name}, labeled Sponsored, that you can share anywhere.</p>
+          {spotlightBooked ? <a class="btn" href={`/order/${spotlightBooked.token}`}>Booked · view order</a>
+            : canPay ? <form method="post" action="/api/checkout"><input type="hidden" name="plan" value="spotlight" /><input type="hidden" name="token" value={t} /><button class="btn btn-primary" type="submit">Book a Spotlight</button></form>
+            : <a class="btn btn-primary" href="/advertise#inquire">Ask about a Spotlight</a>}
+        </div>
+      </div>
+      <p class="small muted">Payments are handled by Stripe. Paying never changes your records or reviews.</p>
     </section>
     <section class="stack">
       <h2>Reply to reviews</h2>
