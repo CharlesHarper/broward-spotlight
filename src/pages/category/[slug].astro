@@ -24,9 +24,15 @@ const [list, feat, ad, byCity] = await Promise.all([
 ]);
 const cityLinks = byCity.results.filter((r) => CITY_NAMES[r.city_slug]);
 const title = city ? `${cat.label} in ${CITY_NAMES[city]}, FL` : `${cat.label} in Broward County`;
+const site = env(Astro.locals).SITE_URL;
+const catLd = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+  { '@type': 'ListItem', position: 1, name: 'Broward', item: `${site}/` },
+  { '@type': 'ListItem', position: 2, name: 'Categories', item: `${site}/categories` },
+  { '@type': 'ListItem', position: 3, name: cat.label, item: `${site}/category/${cat.slug}` },
+] };
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title={title} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1} canonical={`${env(Astro.locals).SITE_URL}/category/${cat.slug}`}>
+<Base title={title} jsonld={catLd} description={`${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`} search city={city} noindex={list.total === 0 || page > 1} canonical={`${env(Astro.locals).SITE_URL}/category/${cat.slug}`}>
   <div class="wrap stack-lg">
     <header class="stack">
       <p class="label"><a href="/categories">Categories</a></p>

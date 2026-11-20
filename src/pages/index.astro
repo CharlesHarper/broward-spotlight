@@ -23,12 +23,12 @@ const homeLd = {
   '@graph': [
     { '@type': 'WebSite', '@id': `${site}/#website`, url: site, name: 'Broward Spotlight',
       potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${site}/search?q={search_term_string}` }, 'query-input': 'required name=search_term_string' } },
-    { '@type': 'Organization', '@id': `${site}/#org`, name: 'Broward Spotlight', url: site, logo: `${site}/favicon.svg`, areaServed: 'Broward County, Florida' },
+    { '@type': 'Organization', '@id': `${site}/#org`, name: 'Broward Spotlight', url: site, logo: `${site}/og.png`, areaServed: 'Broward County, Florida' },
   ],
 };
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title="Broward County Business Directory & Restaurant Inspections" jsonld={homeLd} description="Search Broward County businesses with the facts on the record: state restaurant inspections, license status, verified owners and real customer reviews.">
+<Base title="Broward County Business Directory" jsonld={homeLd} description="Search Broward County businesses with the facts on the record: state restaurant inspections, license status, verified owners and real customer reviews.">
   <div class="hero">
     <div class="wrap">
       <p class="label" style="color:var(--spot)">Broward County, on the record</p>
