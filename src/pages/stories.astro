@@ -1,0 +1,28 @@
+---
+import Base from '../layouts/Base.astro';
+import { listStories } from '../lib/stories';
+import { fmtDate } from '../lib/util';
+const stories = await listStories().catch(() => []);
+Astro.response.headers.set('Cache-Control', 'public, max-age=900');
+---
+<Base title="Broward Business Spotlight Stories" description="Researched feature stories about Broward County businesses and the people behind them. Sponsored stories are always labeled." noindex={stories.length === 0}>
+  <div class="wrap stack-lg">
+    <header class="stack" style="max-width:720px">
+      <p class="label">Stories</p>
+      <h1>Broward business spotlights</h1>
+      <p>Feature stories about local businesses, researched from public records, the business's own words and what customers say. Paid stories carry a Sponsored label.</p>
+    </header>
+    {stories.length ? (
+      <div class="grid">
+        {stories.map((s) => (
+          <a class="card" href={`/post/${s.slug}`}>
+            {s.image && <img src={s.image} alt="" loading="lazy" style="width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:var(--r-md);display:block" />}
+            <h2 style="font-size:19px">{s.title}</h2>
+            {s.published && <span class="record muted small">{fmtDate(s.published.slice(0, 10))}</span>}
+            {s.description && <p class="meta">{s.description}</p>}
+          </a>
+        ))}
+      </div>
+    ) : <p class="notice">The first stories are being written. <a href="/advertise">Want your business featured?</a></p>}
+  </div>
+</Base>

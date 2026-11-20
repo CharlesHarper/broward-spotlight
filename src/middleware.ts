@@ -5,9 +5,10 @@ function unauthorized() {
 }
 
 const MAIN_HOST = 'browardspotlight.com';
+const STORIES_HOST = 'stories.browardspotlight.com';
 // Addresses from the earlier GoHighLevel site, sent to their new homes.
 const LEGACY: Record<string, string> = {
-  '/home': '/', '/contact-us': '/about#contact', '/spotlights': '/categories', '/featured-businesses': '/categories', '/get-featured': '/advertise',
+  '/home': '/', '/contact-us': '/about#contact', '/spotlights': '/stories', '/featured-businesses': '/categories', '/get-featured': '/advertise',
   '/spotlights/category/automotive': '/category/auto', '/spotlights/category/home-services': '/category/home-services',
   '/spotlights/category/health-wellness': '/category/health', '/spotlights/category/beauty': '/category/beauty',
   '/spotlights/category/food-drink': '/category/restaurants', '/spotlights/category/professional-services': '/category/professional',
@@ -24,6 +25,18 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   }
   const legacy = LEGACY[p.replace(/\/$/, '') || '/'];
   if (legacy && p !== '/') return Response.redirect(new URL(legacy, ctx.url).toString(), 301);
+  // Spotlight stories are written in the HighLevel blog (stories.browardspotlight.com) and shown here,
+  // so every article lives on the main address at /post/<slug>. The /stories page lists them.
+  if (p.startsWith('/post/')) {
+    const up = await fetch(`https://${STORIES_HOST}${p}${ctx.url.search}`, {
+      headers: { 'user-agent': ctx.request.headers.get('user-agent') ?? 'BrowardSpotlight', accept: 'text/html' },
+      cf: { cacheTtl: 300, cacheEverything: true },
+    } as RequestInit);
+    if (!up.ok || !(up.headers.get('content-type') ?? '').includes('text/html')) return ctx.rewrite('/404');
+    const html = (await up.text()).replaceAll(`https://${STORIES_HOST}/post/`, `https://${MAIN_HOST}/post/`)
+      .replaceAll(`https://www.${MAIN_HOST}/post/`, `https://${MAIN_HOST}/post/`).replaceAll(`//${STORIES_HOST}/"`, `//${MAIN_HOST}/stories"`);
+    return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff' } });
+  }
   if (p.startsWith('/admin') || p.startsWith('/api/admin')) {
     const pw = ctx.locals.runtime?.env?.ADMIN_PASSWORD;
     if (!pw) return new Response('Set the ADMIN_PASSWORD secret to use the admin.', { status: 503 });
