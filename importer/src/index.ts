@@ -214,11 +214,13 @@ async function pingIndexNow(env: Env) {
   if (!key || !env.SITE_URL) return;
   const last = await env.DB.prepare(`SELECT value FROM import_state WHERE key = 'indexnow_at'`).first<{ value: string }>();
   if (last && Date.now() - Date.parse(last.value) < 24 * 36e5) return;
+  const tried = await env.DB.prepare(`SELECT value FROM import_state WHERE key = 'indexnow_tried_at'`).first<{ value: string }>();
+  if (tried && Date.now() - Date.parse(tried.value) < 24 * 36e5) return;
   const since = last ? last.value.replace('T', ' ').slice(0, 19) : '2000-01-01 00:00:00';
   const { results } = await env.DB.prepare(`SELECT slug FROM businesses WHERE status = 'active' AND updated_at > ?
     AND (source != 'county' OR claimed = 1 OR description IS NOT NULL OR phone IS NOT NULL OR website IS NOT NULL
       OR EXISTS (SELECT 1 FROM reviews r WHERE r.business_id = businesses.id AND r.status = 'approved'))
-    ORDER BY updated_at DESC LIMIT 9000`).bind(since).all<{ slug: string }>();
+    ORDER BY updated_at DESC LIMIT 1000`).bind(since).all<{ slug: string }>();
   const { results: cities } = await env.DB.prepare(`SELECT slug FROM cities`).all<{ slug: string }>();
   const site = env.SITE_URL.replace(/\/$/, '');
   const urlList = [`${site}/`, `${site}/inspections`, `${site}/cities`, `${site}/categories`,
@@ -228,7 +230,10 @@ async function pingIndexNow(env: Env) {
     method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify({ host: new URL(site).hostname, key, keyLocation: `${site}/${key}.txt`, urlList }),
   });
-  await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES ('indexnow_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')`).bind(now).run();
+  // Only move the bookmark forward when IndexNow accepted the list, so a refused day is resent the next day.
+  // A brand-new site is often throttled (429) at first; smaller daily batches get through as it builds trust.
+  if (res.ok) await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES ('indexnow_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')`).bind(now).run();
+  else await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES ('indexnow_tried_at', ?1) ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')`).bind(now).run();
   await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('indexnow', datetime('now'), datetime('now'), ?, ?, ?)`)
     .bind(urlList.length, res.ok ? urlList.length : 0, `IndexNow answered ${res.status}`).run();
 }
