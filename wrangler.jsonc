@@ -14,6 +14,8 @@
     { "pattern": "www.browardspotlight.com/*", "zone_name": "browardspotlight.com" },
     { "pattern": "directory.browardspotlight.com", "custom_domain": true }
   ],
+  // Owner photos live here (private bucket; the site serves them at /photo/<key>.jpg).
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "broward-spotlight-photos" }],
   "d1_databases": [
     {
       "binding": "DB",
