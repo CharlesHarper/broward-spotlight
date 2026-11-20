@@ -7,6 +7,8 @@ interface Env {
   ADMIN_PASSWORD?: string;
   GHL_WEBHOOK_URL?: string;
   GOOGLE_MAPS_KEY?: string;
+  /** Cloudflare R2 bucket for owner photos. Until it is bound, photos are kept in the database. */
+  PHOTOS?: R2Bucket;
 }
 declare namespace App {
   interface Locals extends Runtime {}

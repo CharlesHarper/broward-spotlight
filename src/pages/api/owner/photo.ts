@@ -19,9 +19,12 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   if ((n?.n ?? 0) >= MAX_PHOTOS) return fail(`A listing can have up to ${MAX_PHOTOS} photos. Remove one to add another.`);
   const clean = cleanJpeg(new Uint8Array(await file.arrayBuffer()));
   if (!clean) return fail('We could not read that file as a photo. Use a JPG, PNG or WebP picture.');
+  const key = token(12);
   const row = await e.DB.prepare(`INSERT INTO photos (business_id, key, bytes, width, height, caption) VALUES (?, ?, ?, ?, ?, ?) RETURNING id`)
-    .bind(b.id, token(12), clean.data.length, clean.width, clean.height, str(f.get('caption'), 120) || null).first<{ id: number }>();
-  await e.DB.prepare(`INSERT INTO photo_data (photo_id, data) VALUES (?, ?)`).bind(row!.id, clean.data).run();
+    .bind(b.id, key, clean.data.length, clean.width, clean.height, str(f.get('caption'), 120) || null).first<{ id: number }>();
+  // Prefer file storage (R2) when it is connected; otherwise keep the image in the database.
+  if (e.PHOTOS) await e.PHOTOS.put(`photos/${key}.jpg`, clean.data, { httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=86400' } });
+  else await e.DB.prepare(`INSERT INTO photo_data (photo_id, data) VALUES (?, ?)`).bind(row!.id, clean.data).run();
   await e.DB.prepare(`UPDATE businesses SET updated_at = datetime('now') WHERE id = ?`).bind(b.id).run();
   return wantsJson ? Response.json({ ok: true }) : redirect(`/owner/${t}?saved=photos#photos`, 303);
 };

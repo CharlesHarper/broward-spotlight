@@ -57,8 +57,11 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
       await db.prepare(`UPDATE businesses SET status = 'hidden' WHERE id = ?`).bind(id).run();
       return back('Listing hidden.');
     case 'photo_remove': {
-      const p = await db.prepare(`UPDATE photos SET status = 'removed' WHERE id = ? RETURNING business_id`).bind(id).first<{ business_id: number }>();
-      if (p) await db.prepare(`DELETE FROM photo_data WHERE photo_id = ?`).bind(id).run();
+      const p = await db.prepare(`UPDATE photos SET status = 'removed' WHERE id = ? RETURNING business_id, key`).bind(id).first<{ business_id: number; key: string }>();
+      if (p) {
+        await db.prepare(`DELETE FROM photo_data WHERE photo_id = ?`).bind(id).run();
+        if (e.PHOTOS) await e.PHOTOS.delete(`photos/${p.key}.jpg`);
+      }
       return redirect(`/admin/business?id=${p?.business_id ?? ''}`, 303);
     }
     case 'lead_done':
