@@ -8,6 +8,8 @@ import Ad from '../../../components/Ad.astro';
 import { listBusinesses, featured, cityStats, cityRow, activeAd } from '../../../lib/db';
 import { CATEGORIES, categoryLabel } from '../../../lib/shared';
 import { env, fmtDate } from '../../../lib/util';
+import CityItems from '../../../components/CityItems.astro';
+import { cityItems } from '../../../lib/citynews';
 
 const db = env(Astro.locals).DB;
 const slug = Astro.params.slug!;
@@ -27,6 +29,7 @@ const [list, feat, stats, ad] = await Promise.all([
   cityStats(db, slug),
   activeAd(db, 'city', slug),
 ]);
+const [events, news] = category ? [[], []] : await Promise.all([cityItems(db, slug, 'event', 5), cityItems(db, slug, 'news', 5)]);
 const since90 = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
 const catStats = category ? await db.prepare(`SELECT COUNT(*) AS n, SUM(claimed) AS claimed, SUM(CASE WHEN last_inspection_date >= ?3 THEN 1 ELSE 0 END) AS inspected
   FROM businesses WHERE city_slug = ?1 AND category = ?2 AND status = 'active'`).bind(slug, category, since90).first<{ n: number; claimed: number | null; inspected: number | null }>() : null;
@@ -84,6 +87,23 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
       </div>
       <p class="small muted" style="margin-top:8px">Inspection figures cover food service businesses inspected by Florida DBPR.</p>
     </section>
+
+    {(events.length > 0 || news.length > 0) && (
+      <div class="city-feeds">
+        {events.length > 0 && (
+          <section class="panel stack">
+            <div class="section-head" style="margin:0"><h2 style="font-size:20px">Upcoming in {city.name}</h2><a href={`/city/${slug}/events`}>All events</a></div>
+            <CityItems items={events} kind="event" />
+          </section>
+        )}
+        {news.length > 0 && (
+          <section class="panel stack">
+            <div class="section-head" style="margin:0"><h2 style="font-size:20px">{city.name} news</h2><a href={`/city/${slug}/news`}>All news</a></div>
+            <CityItems items={news} kind="news" />
+          </section>
+        )}
+      </div>
+    )}
 
     <nav class="chips" aria-label="Categories">
       <a class="chip" href={`/city/${slug}`} aria-current={!category ? 'page' : undefined}>All</a>

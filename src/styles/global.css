@@ -337,3 +337,17 @@ details.panel[open] > summary::after { content: "–"; }
 .faq summary::after { content: '+'; float: right; color: var(--ink-muted); }
 .faq details[open] summary::after { content: '–'; }
 .faq p { margin-top: 8px; color: var(--ink-muted); }
+
+/* City news and events */
+.city-feeds { display: grid; gap: 16px; }
+@media (min-width: 860px) { .city-feeds { grid-template-columns: 1fr 1fr; align-items: start; } }
+.city-events, .city-news { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.city-events li { display: flex; gap: 12px; align-items: flex-start; }
+.ev-date { flex: none; width: 54px; text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 0; background: var(--surface-sunk); }
+.ev-date b { display: block; font: 700 14px/18px var(--font-body); }
+.ev-date small { display: block; color: var(--ink-muted); font: 500 11px/14px var(--font-mono); text-transform: uppercase; }
+.ev-body { min-width: 0; display: grid; gap: 2px; }
+.ev-body a, .city-news a { font-weight: 600; overflow-wrap: anywhere; }
+.ev-body small, .city-news small { color: var(--ink-muted); font-size: 13px; }
+.city-news li { display: grid; gap: 2px; }
+.city-news p { color: var(--ink-muted); font-size: 14px; margin-top: 4px; }

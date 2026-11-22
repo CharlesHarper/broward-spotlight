@@ -1,0 +1,52 @@
+---
+import Base from '../../../layouts/Base.astro';
+import CityItems from '../../../components/CityItems.astro';
+import { cityRow } from '../../../lib/db';
+import { cityItems } from '../../../lib/citynews';
+import { env } from '../../../lib/util';
+
+const e = env(Astro.locals);
+const slug = Astro.params.slug!;
+const city = await cityRow(e.DB, slug);
+if (!city) return Astro.rewrite('/404');
+const KIND = 'event' as 'event' | 'news';
+const items = await cityItems(e.DB, slug, KIND, 60);
+const site = e.SITE_URL.replace(/\/$/, '');
+const where = `${city.name}, FL`;
+const title = KIND === 'event' ? `Events in ${where}: this week and coming up` : `${city.name} news and city updates`;
+const description = KIND === 'event'
+  ? `Upcoming events, meetings and closures in ${where}, from the official city calendar. Updated daily.`
+  : `The latest ${city.name} city news and announcements, from the official city website. Updated daily.`;
+// Event details Google can read: name, date, place and the official page for each event.
+const isoLocal = (s: string) => `${s.replace(' ', 'T')}:00-05:00`;
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Cities', item: `${site}/cities` },
+      { '@type': 'ListItem', position: 2, name: city.name, item: `${site}/city/${slug}` },
+      { '@type': 'ListItem', position: 3, name: KIND === 'event' ? 'Events' : 'News', item: `${site}/city/${slug}/events` },
+    ] },
+    ...(KIND === 'event' ? items.filter((i) => i.location && i.starts_at).map((i) => ({
+      '@type': 'Event', name: i.title, url: i.url, startDate: isoLocal(i.starts_at!), ...(i.ends_at ? { endDate: isoLocal(i.ends_at) } : {}),
+      eventStatus: 'https://schema.org/EventScheduled', eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      location: { '@type': 'Place', name: i.location!.split('\n')[0].trim(), address: { '@type': 'PostalAddress', streetAddress: i.location!.split('\n').slice(1).join(', ').trim() || undefined, addressLocality: city.name, addressRegion: 'FL', addressCountry: 'US' } },
+      organizer: { '@type': 'Organization', name: i.source ?? city.name, url: city.website ?? undefined },
+    })) : []),
+  ],
+};
+Astro.response.headers.set('Cache-Control', 'public, max-age=900');
+---
+<Base title={title} description={description} jsonld={jsonld} noindex={items.length < 3} canonical={`${site}/city/${slug}/events`}>
+  <div class="wrap stack-lg" style="max-width:860px">
+    <header class="stack">
+      <p class="label"><a href="/cities">Cities</a> / <a href={`/city/${slug}`}>{city.name}</a></p>
+      <h1>{KIND === 'event' ? `Events in ${city.name}` : `${city.name} news`}</h1>
+      <p class="muted">{KIND === 'event' ? 'Upcoming events, public meetings and closures' : 'Announcements and updates'} from the official {city.name} website, checked every day. Tap any item for full details on the city's site.</p>
+      <p class="small"><a href={`/city/${slug}/${KIND === 'event' ? 'news' : 'events'}`}>{KIND === 'event' ? `${city.name} news` : `Events in ${city.name}`}</a> · <a href={`/city/${slug}`}>Businesses in {city.name}</a></p>
+    </header>
+    {items.length ? <section class="panel"><CityItems items={items} kind={KIND} full /></section>
+      : <p class="notice">Nothing posted right now. We check the official {city.name} website every day.</p>}
+    {city.website && <p class="small muted">Source: <a href={city.website} target="_blank" rel="noopener">{city.website.replace(/^https?:\/\//, '')}</a>. Broward Spotlight is independent and not affiliated with the city.</p>}
+  </div>
+</Base>

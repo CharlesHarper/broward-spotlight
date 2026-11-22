@@ -182,7 +182,7 @@ export async function activeAd(db: D1Database, slot: 'home' | 'city' | 'category
 }
 
 export async function cityRow(db: D1Database, slug: string) {
-  return db.prepare(`SELECT * FROM cities WHERE slug = ?`).bind(slug).first<{ slug: string; name: string; intro: string | null }>();
+  return db.prepare(`SELECT * FROM cities WHERE slug = ?`).bind(slug).first<{ slug: string; name: string; intro: string | null; website?: string | null }>();
 }
 
 export async function cityCounts(db: D1Database) {
