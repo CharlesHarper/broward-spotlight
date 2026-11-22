@@ -5,6 +5,7 @@ import type { Business, Review } from '../../lib/db';
 import { livePhotos, MAX_PHOTOS } from '../../lib/photos';
 import { PLANS, money, payLink } from '../../lib/plans';
 import { CITY_NAMES, categoryLabel } from '../../lib/shared';
+import { ownerEmail } from '../../lib/owner';
 const e = env(Astro.locals);
 const b = await e.DB.prepare(`SELECT * FROM businesses WHERE owner_token = ?`).bind(Astro.params.token).first<Business>();
 if (!b) return new Response('This owner link is not valid. Ask us for a new one.', { status: 404 });
@@ -19,6 +20,7 @@ const spotlightBooked = orders.find((o) => o.kind === 'spotlight');
 const featLink = payLink(e, 'featured');
 const spotLink = payLink(e, 'spotlight');
 const payEmail = b.owner_email ?? '';
+const signedIn = await ownerEmail(e.DB, Astro.cookies);
 const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : 'Broward County'}`;
 ---
 <Base title={`Manage ${b.name}`} noindex>
@@ -27,6 +29,9 @@ const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_sl
       <p class="label">Owner page · keep this link private</p>
       <h1>{b.name}</h1>
       <p><a href={`/business/${b.slug}`}>View your public listing</a></p>
+      {signedIn
+        ? <form method="post" action="/owner/logout" class="small muted">Signed in as {signedIn} · <a href="/owner">All your listings</a> · <button class="linkish" type="submit">Sign out</button></form>
+        : <p class="small muted">Next time, sign in at <a href="/owner/login">browardspotlight.com/owner/login</a> with {b.owner_email ?? 'your email'}. No password needed.</p>}
     </header>
     {saved && <p class="notice notice-ok" role="status">{saved === 'photos' ? 'Photos updated.' : 'Saved. Your listing is updated.'}</p>}
     <form method="post" action="/api/owner/update" class="panel stack">

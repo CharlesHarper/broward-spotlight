@@ -1,0 +1,31 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env } from '../../lib/util';
+import { ownerEmail, ownedListings } from '../../lib/owner';
+import { categoryLabel } from '../../lib/shared';
+const db = env(Astro.locals).DB;
+const email = await ownerEmail(db, Astro.cookies);
+if (!email) return Astro.redirect('/owner/login', 303);
+const listings = await ownedListings(db, email);
+if (listings.length === 1) return Astro.redirect(`/owner/${listings[0].owner_token}`, 303);
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<Base title="Your listings" noindex>
+  <div class="wrap stack-lg" style="max-width:720px">
+    <header class="stack">
+      <p class="label">Signed in as {email}</p>
+      <h1>Your listings</h1>
+    </header>
+    {listings.length ? (
+      <div class="stack">
+        {listings.map((l) => (
+          <a class="panel" href={`/owner/${l.owner_token}`} style="display:block;text-decoration:none;color:inherit">
+            <b>{l.name}</b>
+            <span class="muted small" style="display:block">{categoryLabel(l.category)}{l.city ? ` · ${l.city}` : ''}</span>
+          </a>
+        ))}
+      </div>
+    ) : <p class="notice">No claimed listings use this email right now. <a href="/claim">Claim your business</a>.</p>}
+    <form method="post" action="/owner/logout"><button class="btn" type="submit">Sign out</button></form>
+  </div>
+</Base>

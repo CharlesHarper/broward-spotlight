@@ -1,0 +1,28 @@
+---
+import Base from '../../layouts/Base.astro';
+import BotFields from '../../components/BotFields.astro';
+import { env } from '../../lib/util';
+import { ownerEmail } from '../../lib/owner';
+const email = await ownerEmail(env(Astro.locals).DB, Astro.cookies);
+if (email) return Astro.redirect('/owner', 303);
+const p = Astro.url.searchParams;
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<Base title="Owner sign in" description="Business owners: sign in to update your Broward Spotlight listing." noindex>
+  <div class="wrap stack-lg" style="max-width:560px">
+    <header class="stack">
+      <p class="label">For business owners</p>
+      <h1>Sign in to manage your listing</h1>
+      <p class="muted">No password needed. Enter the email you claimed your listing with and we'll send you a sign-in link.</p>
+    </header>
+    {p.has('sent') && <p class="notice notice-ok" role="status">Check your inbox. If that email manages a listing, a sign-in link is on its way. It works once and expires in 30 minutes.</p>}
+    {p.has('expired') && <p class="notice" role="status">That sign-in link has expired or was already used. Enter your email for a new one.</p>}
+    {p.has('out') && <p class="notice" role="status">You're signed out.</p>}
+    <form method="post" action="/api/owner/login" class="panel stack">
+      <BotFields />
+      <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" /></label>
+      <button class="btn btn-primary" type="submit">Email me a sign-in link</button>
+    </form>
+    <p class="small muted">Haven't claimed your business yet? <a href="/claim">Find and claim your listing</a>. It's free.</p>
+  </div>
+</Base>
