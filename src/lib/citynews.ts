@@ -85,7 +85,26 @@ function clock(s: string): string | null {
   return `${String(h).padStart(2, '0')}:${m[2]}`;
 }
 
+/** Granicus Vision calendars put the date in the title: "Council Meeting (11/23/2026 6:00 PM - 11:00 PM)". */
+const TITLE_DATE = /\s*\((\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}:\d{2}\s*[AP]M))?(?:\s*-\s*(?:(\d{1,2})\/(\d{1,2})\/(\d{4}))?\s*(\d{1,2}:\d{2}\s*[AP]M)?)?\)\s*$/i;
+export const eventTitle = (t: string) => t.replace(TITLE_DATE, '').trim();
+function whenFromTitle(t: string) {
+  const m = t.match(TITLE_DATE);
+  if (!m) return null;
+  const ymd = (y: string, mo: string, d: string) => `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  const d1 = ymd(m[3], m[1], m[2]);
+  const d2 = m[7] ? ymd(m[7], m[5], m[6]) : null;
+  const t1 = m[4] ? clock(m[4]) : null, t2 = m[8] ? clock(m[8]) : null;
+  return {
+    starts: `${d1} ${t1 ?? '00:00'}`,
+    ends: d2 ? `${d2} ${t2 ?? '23:59'}` : t2 ? `${d1} ${t2}` : null,
+    timeText: t1 ? [m[4], m[8]].filter(Boolean).join(' - ').toUpperCase() : null,
+  };
+}
+
 export function eventWhen(i: FeedItem): { starts: string; ends: string | null; timeText: string | null } | null {
+  const fromTitle = !i.eventDates && !/Event dates?:/i.test(i.description) ? whenFromTitle(i.title) : null;
+  if (fromTitle) return fromTitle;
   const src = i.eventDates ?? (i.description.match(/Event dates?:\s*([^\n]+)/i)?.[1] ?? '');
   const parts = src.split(/\s+-\s+/);
   const d1 = day(parts[0] ?? ''), d2 = parts[1] ? day(parts[1]) : null;
@@ -125,8 +144,10 @@ export async function discoverFeeds(domain: string) {
     }
     return null;
   };
-  const news = await tryList([`https://${host}/RSSFeed.aspx?ModID=1&CID=All-newsflash.xml`, `https://${host}/feed/`], false);
-  const events = await tryList([`https://${host}/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`], true);
+  // CivicPlus, then Granicus Vision (ctID 5 = news, 6 = calendar), then WordPress.
+  const vision = `https://${host}/Home/Components/RssFeeds/RssFeed/View?ctID=`;
+  const news = await tryList([`https://${host}/RSSFeed.aspx?ModID=1&CID=All-newsflash.xml`, `${vision}5`, `https://${host}/feed/`], false);
+  const events = await tryList([`https://${host}/RSSFeed.aspx?ModID=58&CID=All-calendar.xml`, `${vision}6`], true);
   return { news, events };
 }
 
@@ -170,7 +191,7 @@ export async function refreshCityFeeds(db: D1Database, perRun = 4) {
         if (!w) continue;
         stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, location, starts_at, ends_at, time_text) VALUES (?, 'event', ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, location = excluded.location, starts_at = excluded.starts_at, ends_at = excluded.ends_at, time_text = excluded.time_text, fetched_at = datetime('now')`)
-          .bind(c.slug, i.title.slice(0, 300), i.link, source, i.location?.slice(0, 300) || null, w.starts, w.ends, w.timeText));
+          .bind(c.slug, eventTitle(i.title).slice(0, 300), i.link, source, i.location?.slice(0, 300) || null, w.starts, w.ends, w.timeText));
       }
     }
     stmts.push(db.prepare(`UPDATE cities SET website = COALESCE(website, ?), news_feed = ?, events_feed = ?, feeds_checked_at = datetime('now') WHERE slug = ?`)
