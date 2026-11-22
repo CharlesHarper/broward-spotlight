@@ -151,6 +151,9 @@ export async function discoverFeeds(domain: string) {
   return { news, events };
 }
 
+// Places that are towns or villages rather than cities, for the source label.
+const TOWNS: Record<string, string> = { davie: 'Town', 'pembroke-park': 'Town', 'southwest-ranches': 'Town', 'lauderdale-by-the-sea': 'Town', 'hillsboro-beach': 'Town', 'lazy-lake': 'Village', 'sea-ranch-lakes': 'Village' };
+
 type City = { slug: string; name: string; website: string | null; news_feed: string | null; events_feed: string | null; feeds_checked_at: string | null };
 
 /** Refreshes a handful of cities per run (keeps each run under the platform's request limits). */
@@ -171,7 +174,8 @@ export async function refreshCityFeeds(db: D1Database, perRun = 4) {
         if (found.news || found.events) { news = found.news; events = found.events; domain = d; break; }
       }
     }
-    const source = `City of ${c.name}`.replace('City of Unincorporated Broward', 'Broward County');
+    const kind = TOWNS[c.slug] ?? 'City';
+    const source = c.slug === 'unincorporated-broward' ? 'Broward County' : `${kind} of ${c.name}`;
     const stmts: D1PreparedStatement[] = [];
     if (news) {
       const items = parseRss((await get(news)) ?? '').slice(0, 25);
@@ -179,7 +183,7 @@ export async function refreshCityFeeds(db: D1Database, perRun = 4) {
         const pub = i.pubDate && !Number.isNaN(Date.parse(i.pubDate)) ? new Date(i.pubDate).toISOString().slice(0, 19).replace('T', ' ') : null;
         const summary = i.description.replace(/\s+/g, ' ').slice(0, 240) || null;
         stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, summary, published_at) VALUES (?, 'news', ?, ?, ?, ?, ?)
-          ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, summary = excluded.summary, fetched_at = datetime('now')`)
+          ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, summary = excluded.summary, source = excluded.source, fetched_at = datetime('now')`)
           .bind(c.slug, i.title.slice(0, 300), i.link, source, summary, pub));
       }
     }
@@ -190,7 +194,7 @@ export async function refreshCityFeeds(db: D1Database, perRun = 4) {
         const w = eventWhen(i);
         if (!w) continue;
         stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, location, starts_at, ends_at, time_text) VALUES (?, 'event', ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, location = excluded.location, starts_at = excluded.starts_at, ends_at = excluded.ends_at, time_text = excluded.time_text, fetched_at = datetime('now')`)
+          ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, source = excluded.source, location = excluded.location, starts_at = excluded.starts_at, ends_at = excluded.ends_at, time_text = excluded.time_text, fetched_at = datetime('now')`)
           .bind(c.slug, eventTitle(i.title).slice(0, 300), i.link, source, i.location?.slice(0, 300) || null, w.starts, w.ends, w.timeText));
       }
     }
