@@ -31,7 +31,7 @@
     "GHL_LINK_SPOTLIGHT": "https://links.harpergrowthsystems.com/payment-link/6b027c8121a48a3872d28374",
     "GHL_LINK_AD": "https://links.harpergrowthsystems.com/payment-link/6b027caa906a8b62055d89ae",
     // Set to "1" once a payment provider is connected in HighLevel (Payments > Integrations).
-    "PAYMENTS_LIVE": "0",
+    "PAYMENTS_LIVE": "1",
     "SITE_URL": "https://browardspotlight.com",
     "SITE_NAME": "Broward Spotlight"
   }
