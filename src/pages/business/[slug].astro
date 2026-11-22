@@ -8,6 +8,7 @@ import ListingCard from '../../components/ListingCard.astro';
 import CategoryIcon from '../../components/CategoryIcon.astro';
 import { categoryLabel, CITY_NAMES, titleCase } from '../../lib/shared';
 import { env, fmtDate, fmtPhone, telHref, mapsUrl } from '../../lib/util';
+import { subcatOf } from '../../lib/subcats';
 
 const e = env(Astro.locals);
 const b = await getBusiness(e.DB, Astro.params.slug!);
@@ -32,18 +33,9 @@ const bizLd = {
   ...(cityName ? { address: { '@type': 'PostalAddress', streetAddress: showStreet ? b.address : undefined, addressLocality: cityName, addressRegion: 'FL', postalCode: b.zip ?? undefined, addressCountry: 'US' } } : {}),
   ...(b.phone ? { telephone: b.phone } : {}),
   ...(b.website || b.facebook || b.instagram ? { sameAs: [b.website, b.facebook, b.instagram].filter(Boolean) } : {}),
-};
-const jsonld = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    // Filled in when the page renders, after the summary and photo list below are ready.
-    { ...bizLd, get description() { return summary; }, get image() { return d.photos.length ? d.photos.map((p) => `${site}${photoUrl(p.key)}`) : undefined; } },
-    { '@type': 'BreadcrumbList', itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Broward County', item: e.SITE_URL },
-      ...(b.city_slug && CITY_NAMES[b.city_slug] ? [{ '@type': 'ListItem', position: 2, name: cityName, item: `${e.SITE_URL}/city/${b.city_slug}` }] : []),
-      { '@type': 'ListItem', position: 3, name: categoryLabel(b.category), item: `${e.SITE_URL}${b.city_slug && CITY_NAMES[b.city_slug] ? `/city/${b.city_slug}/${b.category}` : `/category/${b.category}`}` },
-    ] },
-  ],
+  ...(b.lat && b.lng ? { geo: { '@type': 'GeoCoordinates', latitude: b.lat, longitude: b.lng } } : {}),
+  ...(cityName ? { areaServed: { '@type': 'City', name: `${cityName}, FL` }, hasMap: mapsUrl(b.name, showStreet ? b.address : null, cityName) } : {}),
+  ...(b.started_on ? { foundingDate: b.started_on } : {}),
 };
 const mapSrc = e.GOOGLE_MAPS_KEY && cityName
   ? `https://www.google.com/maps/embed/v1/place?key=${e.GOOGLE_MAPS_KEY}&q=${encodeURIComponent([b.name, showStreet ? b.address : null, cityName, 'FL', showStreet ? b.zip : null].filter(Boolean).join(', '))}`
@@ -63,13 +55,44 @@ const photoUrl = (k: string) => `/photo/${k}.jpg`;
 const photoAlt = (p: { caption: string | null }, n: number) => p.caption || `${b.name}${cityName ? ` in ${cityName}` : ''}, photo ${n} from the owner`;
 const more = await related(env(Astro.locals).DB, b);
 const typeLabel = b.subtype ?? categoryLabel(b.category);
-const baseTitle = `${b.name}, ${cityName}`;
-const pageTitle = isFood && d.inspections.length ? `${baseTitle}: inspections & reviews`
-  : (baseTitle.length + typeLabel.length <= 46 ? `${baseTitle} – ${typeLabel}` : baseTitle);
+// Shaped like what people type: "<name> <city>", "<name> reviews", "<type> in <city>". Kept under ~60 characters with the site name.
+const place = cityName ? `${cityName}, FL` : 'Broward County, FL';
+const pageTitle = isFood && d.inspections.length
+  ? (`${b.name}, ${place}: Inspections & Reviews`.length <= 62 ? `${b.name}, ${place}: Inspections & Reviews` : `${b.name}, ${place} Inspections`)
+  : (`${b.name} – ${typeLabel} in ${place}`.length <= 62 ? `${b.name} – ${typeLabel} in ${place}` : `${b.name}, ${place}`);
+const sub = subcatOf(b.category, b.subtype, b.name);
+// Plain questions and answers, built only from facts already on this page.
+const faq: { q: string; a: string }[] = [];
+if (cityName) faq.push({ q: `Where is ${b.name} located?`, a: showStreet ? `${b.name} is at ${b.address}, ${cityName}, FL ${b.zip ?? ''}`.trim() + '.' : `${b.name} is in ${cityName}, FL${b.zip ? ` ${b.zip}` : ''}. The owner hasn't confirmed a street address yet.` });
+if (b.phone) faq.push({ q: `What is the phone number for ${b.name}?`, a: `You can reach ${b.name} at ${fmtPhone(b.phone)}.` });
+if (b.website) faq.push({ q: `Does ${b.name} have a website?`, a: `Yes. ${b.name}'s website is ${b.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}.` });
+if (b.hours) faq.push({ q: `What are ${b.name}'s hours?`, a: `${b.name} lists these hours: ${b.hours.replace(/\n+/g, '; ')}. Hours can change, so call ahead to confirm.` });
+if (latest) faq.push({ q: `When was ${b.name} last inspected?`, a: `Florida's Division of Hotels and Restaurants last inspected ${b.name} on ${fmtDate(latest.date)}. The result was "${latest.disposition}".` });
+if (b.started_on) { const yrs = new Date().getUTCFullYear() - new Date(b.started_on + 'T12:00:00Z').getUTCFullYear(); faq.push({ q: `How long has ${b.name} been in business?`, a: `Broward County business tax records list a start date of ${fmtDate(b.started_on)}${yrs >= 1 ? `, about ${yrs} ${yrs === 1 ? 'year' : 'years'} ago` : ''}.` }); }
+if (b.dbpr_license) faq.push({ q: `Is ${b.name} licensed by the state?`, a: `Yes. ${b.name} holds Florida food service license ${b.dbpr_license}${b.license_expires ? `, which runs through ${fmtDate(b.license_expires)}` : ''}.` });
+if (d.reviewStats.n > 0) faq.push({ q: `What do customers say about ${b.name}?`, a: `${d.reviewStats.n} ${d.reviewStats.n === 1 ? 'customer has' : 'customers have'} reviewed ${b.name} on Broward Spotlight, with an average of ${d.reviewStats.avg} out of 5.` });
 // Search-result description: the owner's own words when there are any, otherwise the record summary. Cut at a word, about 160 characters.
 const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
 const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : summary);
 const thin = b.source === 'county' && !b.claimed && !b.description && !b.phone && !b.website && d.reviewStats.n === 0 && d.mentions.length === 0;
+const jsonld = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    // Filled in when the page renders, after the summary and photo list below are ready.
+    { ...bizLd, get description() { return summary; }, get image() { return d.photos.length ? d.photos.map((p) => `${site}${photoUrl(p.key)}`) : undefined; },
+      // Reviews written on Broward Spotlight itself (first-party), never copied from other sites.
+      ...(d.reviewStats.n > 0 ? {
+        aggregateRating: { '@type': 'AggregateRating', ratingValue: d.reviewStats.avg, reviewCount: d.reviewStats.n, bestRating: 5, worstRating: 1 },
+        review: d.reviews.slice(0, 5).map((r) => ({ '@type': 'Review', author: { '@type': 'Person', name: r.name }, datePublished: r.created_at.slice(0, 10), reviewBody: r.body, reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 } })),
+      } : {}) },
+    ...(faq.length >= 2 ? [{ '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : []),
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Broward County', item: e.SITE_URL },
+      ...(b.city_slug && CITY_NAMES[b.city_slug] ? [{ '@type': 'ListItem', position: 2, name: cityName, item: `${e.SITE_URL}/city/${b.city_slug}` }] : []),
+      { '@type': 'ListItem', position: 3, name: categoryLabel(b.category), item: `${e.SITE_URL}${b.city_slug && CITY_NAMES[b.city_slug] ? `/city/${b.city_slug}/${b.category}` : `/category/${b.category}`}` },
+    ] },
+  ],
+};
 Astro.response.headers.set('Cache-Control', 'public, max-age=120');
 ---
 <Base title={pageTitle} description={desc} search city={b.city_slug} jsonld={jsonld} noindex={thin} image={d.photos[0] ? `${site}${photoUrl(d.photos[0].key)}` : null}>
@@ -81,7 +104,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
     {msg === 'correction' && <p class="notice notice-ok" role="status">Thanks. We'll check that against the source and update the listing if it's wrong.</p>}
 
     <nav class="label" aria-label="Breadcrumb" style="margin-top:4px">
-      <a href="/">Broward</a>{b.city_slug && CITY_NAMES[b.city_slug] && <> / <a href={`/city/${b.city_slug}`}>{cityName}</a> / <a href={`/city/${b.city_slug}/${b.category}`}>{categoryLabel(b.category)}</a></>}
+      <a href="/">Broward</a>{b.city_slug && CITY_NAMES[b.city_slug] && <> / <a href={`/city/${b.city_slug}`}>{cityName}</a> / <a href={`/city/${b.city_slug}/${b.category}`}>{categoryLabel(b.category)}</a></>}{sub && <> / <a href={`/category/${b.category}/${sub.slug}`}>{sub.label}</a></>}
     </nav>
     <header class="biz-card" style="margin-top:10px">
       <div class="biz-top">
@@ -166,6 +189,15 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
                 <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants. Results are shown in the state's own words. A violation noted on inspection day may have been corrected on the spot or at a later call-back. <a href="https://www2.myfloridalicense.com/hotels-restaurants/public-records/" target="_blank" rel="noopener">Official records</a>.</p>
               </>
             ) : <p class="notice">No state inspections on file for this location in the records we've imported.</p>}
+          </section>
+        )}
+
+        {faq.length >= 2 && (
+          <section class="stack" id="faq">
+            <h2>Questions about {b.name}</h2>
+            <div class="faq">
+              {faq.map((f) => <details><summary>{f.q}</summary><p>{f.a}</p></details>)}
+            </div>
           </section>
         )}
 
@@ -257,6 +289,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
     {more.length > 0 && b.city_slug && (
       <section style="margin-top:40px">
         <div class="section-head"><h2>More {categoryLabel(b.category).toLowerCase()} in {cityName}</h2><a href={`/city/${b.city_slug}/${b.category}`}>See all</a></div>
+        {sub && <p class="small" style="margin:-6px 0 12px"><a href={`/category/${b.category}/${sub.slug}`}>All {sub.label.toLowerCase()} in Broward County</a></p>}
         <div class="grid">{more.map((m) => <ListingCard b={m} />)}</div>
       </section>
     )}

@@ -21,6 +21,9 @@ const featLink = payLink(e, 'featured');
 const spotLink = payLink(e, 'spotlight');
 const payEmail = b.owner_email ?? '';
 const signedIn = await ownerEmail(e.DB, Astro.cookies);
+const siteUrl = e.SITE_URL.replace(/\/$/, '');
+const badgeLink = `${siteUrl}/business/${b.slug}`;
+const badgeImg = `${siteUrl}/badge/${b.slug}.svg`;
 const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : 'Broward County'}`;
 ---
 <Base title={`Manage ${b.name}`} noindex>
@@ -73,6 +76,13 @@ const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_sl
           <p class="small" id="photo-status" role="status" aria-live="polite"></p>
         </form>
       ) : <p class="notice">You've reached {MAX_PHOTOS} photos. Remove one to add another.</p>}
+    </section>
+    <section class="panel stack" id="badge">
+      <h2>Add your Verified badge to your website</h2>
+      <p class="small">Paste this into your website (most site builders have an "Embed" or "HTML" block). It shows customers you're verified and links them to your reviews. It also helps your listing show up in Google.</p>
+      <img src={`/badge/${b.slug}.svg`} alt={`${b.name} is verified on Broward Spotlight`} width="220" height="64" />
+      <textarea readonly rows="3" class="record" style="width:100%;font-size:12px" id="badge-code">{`<a href="${badgeLink}" target="_blank" rel="noopener"><img src="${badgeImg}" alt="${b.name} is verified on Broward Spotlight" width="220" height="64"></a>`}</textarea>
+      <button class="btn btn-sm" type="button" id="badge-copy">Copy code</button>
     </section>
     <section class="panel stack" id="promote">
       <h2>Promote your listing</h2>
@@ -162,4 +172,11 @@ const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_sl
       else location.href = `/owner/${token}?saved=photos#photos`;
     });
   }
+</script>
+<script>
+  const copy = document.getElementById('badge-copy');
+  copy?.addEventListener('click', async () => {
+    const box = document.getElementById('badge-code') as HTMLTextAreaElement;
+    try { await navigator.clipboard.writeText(box.value); copy.textContent = 'Copied'; } catch { box.select(); }
+  });
 </script>

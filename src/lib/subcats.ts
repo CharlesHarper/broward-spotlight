@@ -180,3 +180,9 @@ export async function subcatCounts(db: D1Database, category: string): Promise<Re
     .bind(key, JSON.stringify({ at: Date.now(), counts })).run();
   return counts;
 }
+
+/** The sub-category a single business falls in (first match), checked in code with the same rules as the SQL. */
+export function subcatOf(category: string, subtype: string | null, name: string): Subcat | null {
+  const text = ' ' + `${subtype ?? ''} ${name}`.toLowerCase().replace(/[\/\-,]/g, ' ').replace(/&/g, ' & ') + ' ';
+  return subcatsFor(category).find((sc) => sc.kw.some((k) => text.includes(k))) ?? null;
+}
