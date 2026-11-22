@@ -138,17 +138,24 @@ const BTR_RULES: [RegExp, string][] = [
   [/CLOTHING|SHOE RETAIL|FURNITURE|APPLIANC|JEWELRY|EYEGLASSES|FLORIST|PAWNBROKER|FLEA M|ITINERANT/, 'retail'],
   [/OFFICE\/SALES|BUSINESS\/FINANCIAL|CONSULTANT|ATTORNEY|INSURANCE|C P A|ENGINEER|ARCHITECT|ADVERTISING|MARKETING|MORTGAGE|LOANS|STOCKBROKER|BANKS|SAVINGS & LOAN|TITLE\/COLLECTION|TRAVEL AGENCY|WRITERS|PUBLISHER/, 'professional'],
 ];
+/** Occupation descriptions that override the county's category (checked first). */
+const OCC_OVERRIDES: [RegExp, string][] = [
+  [/\b(PET|DOG|CAT)S?\b.*GROOM|\bGROOM.*\b(PET|DOG)S?\b|PET SALON|\bVETERIN/, 'pets'],
+  [/ADJUST(ER|OR)/, 'professional'],
+  [/CARPET/, 'home-services'],
+  [/\b(HAIR|BODY)\b.*\bWRAP|\bBRAID/, 'beauty'],
+];
 const OCC_RULES: [RegExp, string][] = [
   [/FOOD TRUCK|MOBILE FOOD/, 'food-trucks'],
   [/RESTAURANT|CAFE|PIZZ|GRILL|DELI|BAKERY|CATER|COFFEE|JUICE|SMOOTHIE/, 'restaurants'],
-  [/AUTO|CAR WASH|DETAIL|TIRE|TINT|WRAP|TOWING|MECHANIC|COLLISION/, 'auto'],
-  [/PET|VETERIN|GROOM|KENNEL|DOG/, 'pets'],
+  [/\bAUTOS?\b|AUTOMOTIVE|AUTOMOBILE|CAR WASH|\bDETAIL|\bTIRES?\b|\bTINT|VEHICLE WRAP|CAR WRAP|VINYL WRAP|TOWING|MECHANIC|COLLISION/, 'auto'],
+  [/\bPETS?\b|VETERIN|\bGROOM|KENNEL|\bDOGS?\b/, 'pets'],
   [/SALON|BARBER|NAIL|LASH|BROW|SPA|BEAUTY|COSMET|WAX|MAKEUP|HAIR/, 'beauty'],
   [/ROOF|PLUMB|ELECTRIC|HVAC|AIR COND|PAINT|POOL|LAWN|LANDSCAP|PEST|CLEAN|HANDYMAN|PRESSURE|REMODEL|FLOOR|FENCE|SCREEN|GUTTER|MOVING/, 'home-services'],
   [/DOCTOR|MEDICAL|CLINIC|CHIRO|DENT|THERAP|PHARM|NURS|HEALTH|ACUPUNC|OPTOM/, 'health'],
   [/GYM|FITNESS|YOGA|PILATES|PERSONAL TRAIN|MARTIAL|BOXING|CROSSFIT/, 'fitness'],
   [/SCHOOL|TUTOR|CHILD|DAY ?CARE|LEARNING|ACADEMY|LESSON/, 'education'],
-  [/EVENT|DJ|PHOTO|VIDEO|WEDDING|PARTY|BALLOON/, 'events'],
+  [/\bEVENTS?\b|\bDJ\b|PHOTO|VIDEO|WEDDING|PARTY|BALLOON/, 'events'],
   [/LAW|ATTORNEY|ACCOUNT|TAX PREP|BOOKKEEP|INSUR|CONSULT|MARKETING|REAL ESTATE/, 'professional'],
   [/RETAIL|STORE|SHOP|BOUTIQUE|SALES/, 'retail'],
 ];
@@ -157,6 +164,7 @@ export function btrCategory(category: string | null | undefined, occupation: str
   const o = (occupation ?? '').toUpperCase();
   if (BTR_SKIP.test(c)) return null;
   if (/VACATION RENTAL|RESORT DWELLING/.test(o)) return null;
+  for (const [re, slug] of OCC_OVERRIDES) if (re.test(o)) return slug;
   for (const [re, slug] of BTR_RULES) if (re.test(c)) return slug;
   for (const [re, slug] of OCC_RULES) if (re.test(o)) return slug;
   return 'other';

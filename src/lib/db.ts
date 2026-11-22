@@ -1,3 +1,4 @@
+import { subcatWhere, type Subcat } from './subcats';
 import type { Tone } from './shared';
 
 export interface Business {
@@ -46,12 +47,13 @@ export async function featured(db: D1Database, opts: { city?: string | null; cat
 
 export async function listBusinesses(
   db: D1Database,
-  opts: { city?: string | null; category?: string | null; page?: number },
+  opts: { city?: string | null; category?: string | null; sub?: Subcat | null; page?: number },
 ) {
   const where = [`b.status = 'active'`];
   const binds: unknown[] = [];
   if (opts.city) { where.push(`b.city_slug = ?${binds.length + 1}`); binds.push(opts.city); }
   if (opts.category) { where.push(`b.category = ?${binds.length + 1}`); binds.push(opts.category); }
+  if (opts.sub) { const sw = subcatWhere(opts.sub, binds.length + 1); where.push(sw.sql); binds.push(...sw.binds); }
   const page = Math.max(1, opts.page ?? 1);
   const w = where.join(' AND ');
   const [rows, count] = await db.batch([
@@ -68,7 +70,7 @@ export function ftsQuery(q: string): string | null {
   return words.map((w) => `"${w}"*`).join(' ');
 }
 
-export async function search(db: D1Database, q: string, opts: { city?: string | null; category?: string | null; page?: number }) {
+export async function search(db: D1Database, q: string, opts: { city?: string | null; category?: string | null; sub?: Subcat | null; page?: number }) {
   const fq = ftsQuery(q);
   const page = Math.max(1, opts.page ?? 1);
   if (!fq) return listBusinesses(db, opts);
@@ -76,6 +78,7 @@ export async function search(db: D1Database, q: string, opts: { city?: string | 
   const binds: unknown[] = [fq];
   if (opts.city) { where.push(`b.city_slug = ?${binds.length + 1}`); binds.push(opts.city); }
   if (opts.category) { where.push(`b.category = ?${binds.length + 1}`); binds.push(opts.category); }
+  if (opts.sub) { const sw = subcatWhere(opts.sub, binds.length + 1); where.push(sw.sql); binds.push(...sw.binds); }
   const w = where.join(' AND ');
   const [rows, count] = await db.batch([
     db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}

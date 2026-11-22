@@ -5,6 +5,7 @@ import Featured from '../components/Featured.astro';
 import Pager from '../components/Pager.astro';
 import { search, featured, searchCategories } from '../lib/db';
 import { CATEGORIES, CITY_NAMES, categoryLabel } from '../lib/shared';
+import { findSubcat } from '../lib/subcats';
 import { env } from '../lib/util';
 const db = env(Astro.locals).DB;
 const q = (Astro.url.searchParams.get('q') ?? '').slice(0, 120);
@@ -12,9 +13,10 @@ const cityParam = Astro.url.searchParams.get('city');
 const city = cityParam && CITY_NAMES[cityParam] ? cityParam : null;
 const catParam = Astro.url.searchParams.get('category');
 const category = CATEGORIES.some((c) => c.slug === catParam) ? catParam : null;
+const sub = category ? findSubcat(category, Astro.url.searchParams.get('sub') ?? '') : null;
 const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
 const [res, feat, cats] = await Promise.all([
-  search(db, q, { city, category, page }),
+  search(db, q, { city, category, sub, page }),
   page === 1 ? featured(db, { city, category, limit: 2 }) : Promise.resolve([]),
   searchCategories(db, q, city),
 ]);
@@ -23,6 +25,7 @@ const link = (cat: string | null) => {
   if (q) u.set('q', q);
   if (city) u.set('city', city);
   if (cat) u.set('category', cat);
+  if (cat && sub && cat === category) u.set('sub', sub.slug);
   return `/search?${u}`;
 };
 const where = city ? CITY_NAMES[city] : 'Broward';
@@ -31,7 +34,7 @@ const where = city ? CITY_NAMES[city] : 'Broward';
   <div class="wrap stack-lg">
     <header class="stack">
       <h1>{q ? <>Results for “{q}”</> : 'All businesses'}</h1>
-      <p class="muted">{res.total.toLocaleString()} {res.total === 1 ? 'match' : 'matches'} in {where}{category ? ` · ${categoryLabel(category)}` : ''}</p>
+      <p class="muted">{res.total.toLocaleString()} {res.total === 1 ? 'match' : 'matches'} in {where}{category ? ` · ${sub ? sub.label : categoryLabel(category)}` : ''}</p>
     </header>
     {cats.length > 1 && (
       <nav class="chips" aria-label="Filter by category">

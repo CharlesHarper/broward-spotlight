@@ -1,0 +1,108 @@
+---
+import Base from '../../../layouts/Base.astro';
+import ListingCard from '../../../components/ListingCard.astro';
+import Featured from '../../../components/Featured.astro';
+import Pager from '../../../components/Pager.astro';
+import Ad from '../../../components/Ad.astro';
+import CategoryIcon from '../../../components/CategoryIcon.astro';
+import { listBusinesses, featured, activeAd } from '../../../lib/db';
+import { CATEGORIES, CITY_NAMES } from '../../../lib/shared';
+import { findSubcat, subcatsFor, subcatCounts } from '../../../lib/subcats';
+import { env } from '../../../lib/util';
+
+const db = env(Astro.locals).DB;
+const site = env(Astro.locals).SITE_URL;
+const cat = CATEGORIES.find((c) => c.slug === Astro.params.slug);
+if (!cat) return Astro.rewrite('/404');
+const subSlug = Astro.params.sub ?? '';
+const sub = subSlug ? findSubcat(cat.slug, subSlug) : null;
+if (subSlug && !sub) return Astro.rewrite('/404');
+const cityParam = Astro.url.searchParams.get('city');
+// One category in one city lives at /city/<city>/<category>; the old ?city= form forwards there.
+if (!sub && cityParam && CITY_NAMES[cityParam]) return Astro.redirect(`/city/${cityParam}/${cat.slug}`, 301);
+const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
+const subs = subcatsFor(cat.slug);
+const [list, feat, ad, byCity, counts] = await Promise.all([
+  listBusinesses(db, { category: cat.slug, sub, page }),
+  featured(db, { category: cat.slug, limit: 3 }),
+  activeAd(db, 'category', cat.slug),
+  sub ? Promise.resolve({ results: [] as { city_slug: string; n: number }[] })
+    : db.prepare(`SELECT city_slug, COUNT(*) AS n FROM businesses WHERE category = ? AND status = 'active' AND city_slug IS NOT NULL GROUP BY city_slug ORDER BY n DESC`).bind(cat.slug).all<{ city_slug: string; n: number }>(),
+  subcatCounts(db, cat.slug),
+]);
+const cityLinks = byCity.results.filter((r) => CITY_NAMES[r.city_slug]);
+const shownSubs = subs.filter((s) => (counts[s.slug] ?? 0) > 0);
+const name = sub ? sub.label : cat.label;
+const title = `${name} in Broward County`;
+const base = `/category/${cat.slug}`;
+const crumbs = [
+  { name: 'Broward', item: `${site}/` },
+  { name: 'Categories', item: `${site}/categories` },
+  { name: cat.label, item: `${site}${base}` },
+  ...(sub ? [{ name: sub.label, item: `${site}${base}/${sub.slug}` }] : []),
+];
+const ld = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, ...c })) };
+const placeholder = `Search ${name.toLowerCase()}…`;
+const description = sub
+  ? `${list.total.toLocaleString()} ${sub.label.toLowerCase()} businesses in Broward County, with public records, owner details and reviews.`
+  : `${cat.blurb} ${list.total.toLocaleString()} listings across Broward County, with public records and reviews.`;
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+<Base title={title} jsonld={ld} description={description} noindex={list.total === 0 || page > 1} canonical={`${site}${base}${sub ? `/${sub.slug}` : ''}`}>
+  <div class="wrap stack-lg">
+    <header class="stack">
+      <p class="label"><a href="/categories">Categories</a>{sub && <> / <a href={base}>{cat.label}</a></>}</p>
+      <div class="cat-head">
+        <span class:list={['thumb', `tint-${cat.slug}`]}><CategoryIcon slug={cat.slug} size={26} /></span>
+        <h1>{title}</h1>
+      </div>
+      {!sub && <p class="muted" style="max-width:65ch">{cat.blurb}</p>}
+      <form class="in-cat" action="/search" method="get" role="search">
+        <input type="hidden" name="category" value={cat.slug} />
+        {sub && <input type="hidden" name="sub" value={sub.slug} />}
+        <label class="sr" for="cq">{placeholder}</label>
+        <input id="cq" name="q" placeholder={placeholder} autocomplete="off" />
+        <select name="city" aria-label="City">
+          <option value="">All of Broward</option>
+          {Object.entries(CITY_NAMES).map(([k, v]) => <option value={k}>{v}</option>)}
+        </select>
+        <button class="btn btn-primary" type="submit">Search</button>
+      </form>
+    </header>
+
+    {shownSubs.length > 0 && (sub ? (
+      <nav class="chips" aria-label={`Kinds of ${cat.label.toLowerCase()}`}>
+        <a class="chip" href={base}>All {cat.label.toLowerCase()}</a>
+        {shownSubs.map((s) => (
+          <a class="chip" href={`${base}/${s.slug}`} aria-current={s.slug === sub.slug ? 'page' : undefined}>{s.label} <span class="n">{counts[s.slug].toLocaleString()}</span></a>
+        ))}
+      </nav>
+    ) : (
+      <section>
+        <div class="section-head"><h2>Browse {cat.label.toLowerCase()}</h2></div>
+        <div class="tiles sub-tiles">
+          {shownSubs.map((s) => (
+            <a class="tile" href={`${base}/${s.slug}`}>
+              <span><b>{s.label}</b><small>{counts[s.slug].toLocaleString()} listings</small></span>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+
+    {!sub && cityLinks.length > 0 && (
+      <nav class="chips" aria-label="Cities">
+        <a class="chip" href={base} aria-current="page">All of Broward</a>
+        {cityLinks.map((r) => <a class="chip" href={`/city/${r.city_slug}/${cat.slug}`}>{CITY_NAMES[r.city_slug]} <span class="n">{r.n.toLocaleString()}</span></a>)}
+      </nav>
+    )}
+    <Featured items={feat} />
+    <section>
+      <div class="section-head"><h2>{sub ? sub.label : 'All listings'} <span class="muted small">({list.total.toLocaleString()})</span></h2></div>
+      {list.items.length ? <div class="grid">{list.items.map((b) => <ListingCard b={b} />)}</div>
+        : <p class="notice">Nothing listed here yet. Know a great one? <a href="/add-business">Add it</a>.</p>}
+      <Pager page={list.page} total={list.total} base={Astro.url} />
+    </section>
+    <Ad ad={ad} />
+  </div>
+</Base>
