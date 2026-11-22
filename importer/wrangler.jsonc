@@ -23,8 +23,8 @@
     "BROWARD_COUNTY_CODE": "16",
     "OVERPASS_URL": "https://overpass-api.de/api/interpreter",
     "SITE_URL": "https://browardspotlight.com",
-    // Claim invitations per day (the HighLevel workflow is live). Set to 0 to pause.
-    "INVITES_PER_DAY": "25",
+    // Claim invitations paused while the site design is finished. Set back to 25 to resume.
+    "INVITES_PER_DAY": "0",
     // Public ownership token for IndexNow (Bing and others). The same value is served at /<key>.txt on the site.
     "INDEXNOW_KEY": "ec597263a634daab6b5160afd3cc78c2",
     "BTR_URL": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/ArcGIS/rest/services/TaxDatabase2021/FeatureServer/12/query"
