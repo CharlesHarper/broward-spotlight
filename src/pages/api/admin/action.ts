@@ -113,6 +113,19 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
         .bind(b.id, CITY_NAMES[city] ? city : null, CATEGORIES.some((c) => c.slug === cat) ? cat : null, s, en, str(f.get('note'), 200) || null).run();
       return back('Featured placement added.', 'money');
     }
+    case 'order_assign': {
+      // A payment came in from an email that doesn't own a claimed listing: connect it by hand.
+      const o = await db.prepare(`SELECT * FROM orders WHERE id = ? AND status = 'unmatched'`).bind(id).first<any>();
+      const b = await db.prepare(`SELECT id, name, city_slug, category FROM businesses WHERE slug = ?`).bind(str(f.get('slug'), 120)).first<any>();
+      if (!o || !b) return new Response('Check the business slug.', { status: 400 });
+      await db.prepare(`UPDATE orders SET status = 'paid', business_id = ?, business_name = ?, city_slug = ?, category = ? WHERE id = ?`).bind(b.id, b.name, b.city_slug, b.category, o.id).run();
+      if (o.kind === 'featured') {
+        const pl = await db.prepare(`INSERT INTO placements (business_id, city_slug, category, starts_on, ends_on, note) VALUES (?, ?, ?, date('now'), ?, ?) RETURNING id`)
+          .bind(b.id, b.city_slug, b.category, o.paid_through ?? new Date(Date.now() + 33 * 864e5).toISOString().slice(0, 10), `HighLevel order ${o.id}`).first<{ id: number }>();
+        await db.prepare(`UPDATE orders SET placement_id = ? WHERE id = ?`).bind(pl!.id, o.id).run();
+      }
+      return back(`Order connected to ${b.name}.`, 'money');
+    }
     case 'placement_end':
       await db.prepare(`UPDATE placements SET ends_on = date('now', '-1 day') WHERE id = ?`).bind(id).run();
       return back('Placement ended.', 'money');

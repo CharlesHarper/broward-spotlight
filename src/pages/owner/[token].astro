@@ -3,7 +3,7 @@ import Base from '../../layouts/Base.astro';
 import { env, fmtDate } from '../../lib/util';
 import type { Business, Review } from '../../lib/db';
 import { livePhotos, MAX_PHOTOS } from '../../lib/photos';
-import { PLANS, money, stripeReady } from '../../lib/stripe';
+import { PLANS, money, payLink } from '../../lib/plans';
 import { CITY_NAMES, categoryLabel } from '../../lib/shared';
 const e = env(Astro.locals);
 const b = await e.DB.prepare(`SELECT * FROM businesses WHERE owner_token = ?`).bind(Astro.params.token).first<Business>();
@@ -16,9 +16,10 @@ const t = Astro.params.token;
 const { results: orders } = await e.DB.prepare(`SELECT token, kind, status, paid_through FROM orders WHERE business_id = ? AND status = 'paid' ORDER BY id DESC`).bind(b.id).all<{ token: string; kind: string; status: string; paid_through: string | null }>();
 const liveFeatured = orders.find((o) => o.kind === 'featured' && (o.paid_through ?? '') >= new Date().toISOString().slice(0, 10));
 const spotlightBooked = orders.find((o) => o.kind === 'spotlight');
-const canPay = stripeReady(e);
+const featLink = payLink(e, 'featured');
+const spotLink = payLink(e, 'spotlight');
+const payEmail = b.owner_email ?? '';
 const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : 'Broward County'}`;
-const canceled = Astro.url.searchParams.has('canceled');
 ---
 <Base title={`Manage ${b.name}`} noindex>
   <div class="wrap stack-lg" style="max-width:820px">
@@ -70,14 +71,13 @@ const canceled = Astro.url.searchParams.has('canceled');
     </section>
     <section class="panel stack" id="promote">
       <h2>Promote your listing</h2>
-      {canceled && <p class="notice small">Checkout was canceled. Nothing was charged.</p>}
       <div class="tiers" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
         <div class="panel tier">
           <h3 style="font-size:17px">{PLANS.featured.label}</h3>
           <p><span class="price">{money(PLANS.featured.cents)}</span><span class="muted">/month</span></p>
           <p class="small">Your listing at the top of {featuredWhere} pages and matching searches, labeled Featured. Cancel any time.</p>
           {liveFeatured ? <a class="btn" href={`/order/${liveFeatured.token}`}>Featured through {fmtDate(liveFeatured.paid_through)} · manage</a>
-            : canPay ? <form method="post" action="/api/checkout"><input type="hidden" name="plan" value="featured" /><input type="hidden" name="token" value={t} /><button class="btn btn-spot" type="submit">Get Featured</button></form>
+            : featLink ? <a class="btn btn-spot" href={featLink} target="_blank" rel="noopener">Get Featured</a>
             : <a class="btn btn-spot" href="/advertise#inquire">Ask about Featured</a>}
         </div>
         <div class="panel tier">
@@ -85,11 +85,12 @@ const canceled = Astro.url.searchParams.has('canceled');
           <p><span class="price">{money(PLANS.spotlight.cents)}</span><span class="muted"> one time</span></p>
           <p class="small">A researched feature story about {b.name}, labeled Sponsored, that you can share anywhere.</p>
           {spotlightBooked ? <a class="btn" href={`/order/${spotlightBooked.token}`}>Booked · view order</a>
-            : canPay ? <form method="post" action="/api/checkout"><input type="hidden" name="plan" value="spotlight" /><input type="hidden" name="token" value={t} /><button class="btn btn-primary" type="submit">Book a Spotlight</button></form>
+            : spotLink ? <a class="btn btn-primary" href={spotLink} target="_blank" rel="noopener">Book a Spotlight</a>
             : <a class="btn btn-primary" href="/advertise#inquire">Ask about a Spotlight</a>}
         </div>
       </div>
-      <p class="small muted">Payments are handled by Stripe. Paying never changes your records or reviews.</p>
+      {(featLink || spotLink) && payEmail && <p class="notice small">At checkout, use <strong>{payEmail}</strong>. That's how we connect the payment to {b.name}. It switches on within a minute of paying.</p>}
+      <p class="small muted">Secure checkout. Paying never changes your records or reviews.</p>
     </section>
     <section class="stack">
       <h2>Reply to reviews</h2>

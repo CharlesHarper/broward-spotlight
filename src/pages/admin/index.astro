@@ -2,6 +2,8 @@
 import Base from '../../layouts/Base.astro';
 import { env, fmtDate } from '../../lib/util';
 import { categoryLabel } from '../../lib/shared';
+import { paymentsKey } from '../../lib/payments';
+import { payLink } from '../../lib/plans';
 const db = env(Astro.locals).DB;
 const tab = Astro.url.searchParams.get('tab') ?? 'queue';
 const msg = Astro.url.searchParams.get('msg');
@@ -20,6 +22,9 @@ const found = q ? (await db.prepare(`SELECT id, slug, name, city, category, clai
 const placements = tab === 'money' ? (await db.prepare(`SELECT p.*, b.name, b.slug FROM placements p JOIN businesses b ON b.id = p.business_id ORDER BY p.ends_on DESC LIMIT 50`).all<any>()).results : [];
 const ads = tab === 'money' ? (await db.prepare(`SELECT * FROM ads ORDER BY ends_on DESC LIMIT 50`).all<any>()).results : [];
 const orders = tab === 'money' ? (await db.prepare(`SELECT * FROM orders WHERE status != 'pending' OR created_at >= datetime('now', '-2 days') ORDER BY id DESC LIMIT 60`).all<any>()).results : [];
+const E = env(Astro.locals);
+const hookUrl = tab === 'money' ? `${E.SITE_URL.replace(/\/$/, '')}/api/ghl-payment?key=${await paymentsKey(db)}` : '';
+const links = { featured: payLink(E, 'featured'), spotlight: payLink(E, 'spotlight'), ad: payLink(E, 'ad') };
 const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER BY name`).all<any>()).results : [];
 ---
 <Base title="Admin" noindex>
@@ -120,11 +125,18 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER 
     )}
 
     {tab === 'money' && <>
+      <section class="panel panel-sunk stack">
+        <h2 style="font-size:18px">Payments setup</h2>
+        <p class="small">HighLevel payment links: Featured {links.featured ? '✓' : '— not set'} · Spotlight {links.spotlight ? '✓' : '— not set'} · Display ad {links.ad ? '✓' : '— not set'}. Buttons on the site switch from "Ask us" to "Buy" once a link is set.</p>
+        <p class="small">Payment webhook for the HighLevel payments workflow (keep private):</p>
+        <input class="record" readonly value={hookUrl} onclick="this.select()" style="width:100%" />
+      </section>
       <section class="stack">
         <h2>Orders</h2>
         <div class="table-scroll"><table>
           <thead><tr><th>When</th><th>What</th><th>Business</th><th>Email</th><th>Amount</th><th>Status</th></tr></thead>
-          <tbody>{orders.map((o: any) => <tr><td class="record">{o.created_at.slice(0, 10)}</td><td>{o.kind}</td><td>{o.business_name}</td><td>{o.email ?? ''}</td><td class="record">${(o.amount_cents / 100).toFixed(0)}</td><td><a href={`/order/${o.token}`}>{o.status}{o.paid_through ? ` · through ${o.paid_through}` : ''}</a></td></tr>)}</tbody>
+          <tbody>{orders.map((o: any) => <tr><td class="record">{o.created_at.slice(0, 10)}</td><td>{o.kind}</td><td>{o.business_name}</td><td>{o.email ?? ''}</td><td class="record">${(o.amount_cents / 100).toFixed(0)}</td><td><a href={`/order/${o.token}`}>{o.status}{o.paid_through ? ` · through ${o.paid_through}` : ''}</a>
+            {o.status === 'unmatched' && <form method="post" action="/api/admin/action" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><input type="hidden" name="action" value="order_assign" /><input type="hidden" name="id" value={o.id} /><input name="slug" required placeholder="business slug" style="min-width:180px" /><button class="btn btn-sm" type="submit">Connect</button></form>}</td></tr>)}</tbody>
         </table></div>
         {orders.length === 0 && <p class="small muted">No orders yet.</p>}
         <h2>Add a Featured placement</h2>

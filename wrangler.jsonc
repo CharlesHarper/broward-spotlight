@@ -26,6 +26,10 @@
     }
   ],
   "vars": {
+    // HighLevel payment links for each paid plan. Leave blank to show the "ask us" form instead.
+    "GHL_LINK_FEATURED": "",
+    "GHL_LINK_SPOTLIGHT": "",
+    "GHL_LINK_AD": "",
     "SITE_URL": "https://browardspotlight.com",
     "SITE_NAME": "Broward Spotlight"
   }

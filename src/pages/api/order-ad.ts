@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { env, str, token } from '../../lib/util';
+import { env, normUrl, str, token } from '../../lib/util';
+import { CATEGORIES, CITY_NAMES } from '../../lib/shared';
 import { cleanJpeg, MAX_PHOTO_BYTES } from '../../lib/photos';
 
 // A paid display-ad buyer uploads (or swaps) their banner. The ad goes live right away for the paid period.
@@ -7,7 +8,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const e = env(locals);
   const f = await request.formData();
   const o = await e.DB.prepare(`SELECT * FROM orders WHERE token = ? AND kind = 'ad'`).bind(str(f.get('order'), 64))
-    .first<{ id: number; status: string; paid_through: string | null; ad_id: number | null; business_name: string; ad_slot: string; ad_scope: string | null; link_url: string }>();
+    .first<{ id: number; status: string; paid_through: string | null; ad_id: number | null; business_name: string; ad_slot: string | null; ad_scope: string | null; link_url: string | null }>();
   const fail = (msg: string, status = 400) => Response.json({ ok: false, error: msg }, { status });
   if (!o) return fail('Order not found.', 404);
   if (o.status !== 'paid') return fail('This order is not active.');
@@ -27,6 +28,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const m = old?.image_url.match(/^\/ad-image\/([a-z0-9]+)\.jpg$/);
     if (m) await e.PHOTOS.delete(`ads/${m[1]}.jpg`);
   } else {
+    // First upload: the buyer also tells us where the ad links and where it shows.
+    const link = normUrl(str(f.get('link_url'), 500)) ?? o.link_url;
+    if (!link) return fail('Add the web address people should go to.');
+    const slot = ['home', 'city', 'category'].includes(String(f.get('slot'))) ? String(f.get('slot')) : (o.ad_slot ?? 'home');
+    const scope = slot === 'city' ? (CITY_NAMES[String(f.get('city'))] ? String(f.get('city')) : null)
+      : slot === 'category' ? (CATEGORIES.some((c) => c.slug === String(f.get('category'))) ? String(f.get('category')) : null) : null;
+    o.ad_slot = slot; o.ad_scope = scope; o.link_url = link;
+    await e.DB.prepare(`UPDATE orders SET ad_slot = ?, ad_scope = ?, link_url = ? WHERE id = ?`).bind(slot, scope, link, o.id).run();
     const ad = await e.DB.prepare(`INSERT INTO ads (advertiser, slot, scope_slug, image_url, link_url, alt, starts_on, ends_on) VALUES (?, ?, ?, ?, ?, ?, date('now'), ?) RETURNING id`)
       .bind(o.business_name, o.ad_slot, o.ad_scope, url, o.link_url, alt, o.paid_through).first<{ id: number }>();
     await e.DB.prepare(`UPDATE orders SET ad_id = ? WHERE id = ?`).bind(ad!.id, o.id).run();

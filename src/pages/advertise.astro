@@ -2,16 +2,16 @@
 import Base from '../layouts/Base.astro';
 import BotFields from '../components/BotFields.astro';
 import { env } from '../lib/util';
-import { stripeReady } from '../lib/stripe';
-import { CATEGORIES, CITY_NAMES } from '../lib/shared';
-const canPay = stripeReady(env(Astro.locals));
-const canceled = Astro.url.searchParams.has('canceled');
+import { payLink } from '../lib/plans';
+const e = env(Astro.locals);
+const canPay = !!(payLink(e, 'featured') || payLink(e, 'spotlight'));
+const adLink = payLink(e, 'ad');
 const sent = Astro.url.searchParams.get('sent');
 const tiers = [
   { name: 'Claimed listing', price: 'Free', per: '', items: ['Owner verified badge', 'Add phone, website, hours, photos and description', 'Reply to every review', 'Get notified about new reviews'], cta: 'Find your listing', href: '/search', spot: false },
   { name: 'Featured', price: '$79', per: '/month', items: ['Top of your city and category pages, labeled Featured', 'Shown in matching searches', 'Includes everything in a claimed listing', 'Cancel any month'], cta: 'Get Featured', href: canPay ? '/claim?for=featured' : '#inquire', spot: true },
   { name: 'Spotlight article', price: '$249', per: ' one time', items: ['A researched feature story about your business', 'Labeled Sponsored, written by our editors', 'Yours to share on social and your site', 'Stays up as long as the site does'], cta: 'Book a Spotlight', href: canPay ? '/claim?for=spotlight' : '#inquire', spot: false },
-  { name: 'Display ad', price: '$99', per: '/month', items: ['Banner on the city or category pages you pick', 'Labeled Advertisement', 'Links to your site or offer', 'Swap creative any time'], cta: 'Run an ad', href: canPay ? '#ad' : '#inquire', spot: false },
+  { name: 'Display ad', price: '$99', per: '/month', items: ['Banner on the city or category pages you pick', 'Labeled Advertisement', 'Links to your site or offer', 'Swap creative any time'], cta: 'Run an ad', href: adLink ?? '#inquire', ext: !!adLink, spot: false },
 ];
 ---
 <Base title="Advertise on Broward Spotlight" description="Featured placement, sponsored Spotlight articles and display ads for Broward County businesses. Paid placement is always labeled and never changes records or reviews.">
@@ -28,32 +28,12 @@ const tiers = [
           <h2 style="font-size:19px">{t.name}</h2>
           <p><span class="price">{t.price}</span><span class="muted">{t.per}</span></p>
           <ul>{t.items.map((i) => <li>{i}</li>)}</ul>
-          <a class:list={['btn', t.spot ? 'btn-spot' : 'btn-primary']} href={t.href}>{t.cta}</a>
+          <a class:list={['btn', t.spot ? 'btn-spot' : 'btn-primary']} href={t.href} {...((t as any).ext ? { target: '_blank', rel: 'noopener' } : {})}>{t.cta}</a>
         </section>
       ))}
     </div>
     {canPay && <p class="small muted" style="max-width:820px">Featured and Spotlight attach to your listing, so you buy them from your owner page after you claim the listing (free, about a minute). Already claimed? Open the owner link we emailed you.</p>}
-    {canPay && (
-      <section id="ad" style="max-width:720px">
-        <form method="post" action="/api/checkout" class="panel stack">
-          <h2>Run a display ad</h2>
-          {canceled && <p class="notice small">Checkout was canceled. Nothing was charged.</p>}
-          <p class="small muted">$99 a month, cancel any time. After paying you'll upload your banner and it goes live right away.</p>
-          <BotFields />
-          <input type="hidden" name="plan" value="ad" />
-          <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
-          <label class="field"><span>Business name</span><input name="business_name" required maxlength="120" /></label>
-          <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" /></label>
-          <label class="field"><span>Where people go when they tap the ad</span><input name="link_url" type="url" required placeholder="https://" /></label>
-          <label class="field"><span>Where the ad shows</span>
-            <select name="slot" id="ad-slot"><option value="home">Home page</option><option value="city">One city's pages</option><option value="category">One category's pages</option></select>
-          </label>
-          <label class="field" id="ad-city" hidden><span>City</span><select name="city">{Object.entries(CITY_NAMES).map(([k, v]) => <option value={k}>{v}</option>)}</select></label>
-          <label class="field" id="ad-cat" hidden><span>Category</span><select name="category">{CATEGORIES.map((c) => <option value={c.slug}>{c.label}</option>)}</select></label>
-          <button class="btn btn-primary" type="submit">Continue to secure checkout</button>
-        </form>
-      </section>
-    )}
+    {adLink && <p class="small muted" style="max-width:820px">Display ads: after you pay, we email you a private link where you upload your banner and pick where it shows. It goes live as soon as you upload.</p>}
     <section class="panel panel-sunk stack" style="max-width:820px">
       <h2>What paying does and doesn't do</h2>
       <p><strong>Does:</strong> moves your listing into labeled Featured spots, publishes a labeled Sponsored story, or shows a labeled ad.</p>
@@ -78,8 +58,3 @@ const tiers = [
     </section>
   </div>
 </Base>
-<script>
-  const slot = document.getElementById('ad-slot') as HTMLSelectElement | null;
-  const show = () => { if (!slot) return; (document.getElementById('ad-city') as HTMLElement).hidden = slot.value !== 'city'; (document.getElementById('ad-cat') as HTMLElement).hidden = slot.value !== 'category'; };
-  slot?.addEventListener('change', show); show();
-</script>
