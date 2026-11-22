@@ -17,12 +17,18 @@ export async function listStories(limit = 24): Promise<Story[]> {
   const slugs = [...new Set([...home.matchAll(/\/post\/([a-z0-9][a-z0-9-]{1,120})/gi)].map((m) => m[1].toLowerCase()))].slice(0, limit);
   const stories = await Promise.all(slugs.map(async (slug) => {
     const html = await get(`https://${STORIES_HOST}/post/${slug}`);
-    if (!html) return null;
+    if (!html || !isRealStory(html)) return null;
     const title = decode(meta(html, 'og:title') ?? html.match(/<title>([^<]*)<\/title>/i)?.[1] ?? slug);
     return { slug, title, description: decode(meta(html, 'og:description') ?? meta(html, 'description') ?? ''), image: meta(html, 'og:image'),
       published: meta(html, 'article:published_time') } as Story;
   }));
   return stories.filter((s): s is Story => Boolean(s)).sort((a, b) => (b.published ?? '').localeCompare(a.published ?? ''));
+}
+
+/** Skip drafts and test posts: a real Spotlight has at least a few paragraphs of text. */
+function isRealStory(page: string) {
+  const body = innerOf(page, /<div[^>]*id="blogPostContent"[^>]*>/i) ?? '';
+  return body.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length >= 400;
 }
 
 /** The inner HTML of the first element whose opening tag matches `open` (balanced on <div>). */
@@ -60,7 +66,7 @@ export async function getStory(slug: string): Promise<StoryPage | null> {
   const html = await get(`https://${STORIES_HOST}/post/${slug}`);
   if (!html) return null;
   const body = innerOf(html, /<div[^>]*id="blogPostContent"[^>]*>/i);
-  if (body === null) return null;
+  if (body === null || !isRealStory(html)) return null;
   const cover = innerOf(html, /<div[^>]*class="[^"]*blog-cover-image-container[^"]*"[^>]*>/i)?.match(/<img[^>]+src="([^"]+)"/i)?.[1] ?? null;
   const title = textOf(html, 'blog-content-title') || decode(meta(html, 'og:title') ?? slug);
   return {
