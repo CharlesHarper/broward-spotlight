@@ -127,7 +127,9 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER 
     {tab === 'money' && <>
       <section class="panel panel-sunk stack">
         <h2 style="font-size:18px">Payments setup</h2>
-        <p class="small">HighLevel payment links: Featured {links.featured ? '✓' : '— not set'} · Spotlight {links.spotlight ? '✓' : '— not set'} · Display ad {links.ad ? '✓' : '— not set'}. Buttons on the site switch from "Ask us" to "Buy" once a link is set.</p>
+        {E.PAYMENTS_LIVE === '1'
+          ? <p class="small">Checkout is on. HighLevel payment links: Featured {links.featured ? '✓' : '— not set'} · Spotlight {links.spotlight ? '✓' : '— not set'} · Display ad {links.ad ? '✓' : '— not set'}.</p>
+          : <p class="notice small">Checkout is off until a payment provider is connected in HighLevel (Payments → Integrations). Until then, buy buttons show "Ask us" and send an inquiry.</p>}
         <p class="small">Payment webhook for the HighLevel payments workflow (keep private):</p>
         <input class="record" readonly value={hookUrl} onclick="this.select()" style="width:100%" />
       </section>

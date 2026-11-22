@@ -1,0 +1,24 @@
+---
+import Base from '../layouts/Base.astro';
+import { PLANS, isPlan } from '../lib/plans';
+const f = Astro.url.searchParams.get('for') ?? '';
+const plan = isPlan(f) ? f : null;
+const next = plan === 'featured' ? 'Your Featured spot switches on within a minute or two. Open your owner page to see it, or look for your listing at the top of your city and category pages.'
+  : plan === 'spotlight' ? 'Our editors will start researching your story and email you with any questions. Most Spotlight articles go live within 7 business days.'
+  : plan === 'ad' ? 'We are emailing you a private link where you upload your banner and choose where it shows. Your ad goes live as soon as you upload it.'
+  : 'We will email you a receipt and the next steps.';
+---
+<Base title="Thank you" noindex>
+  <div class="wrap stack-lg" style="max-width:640px">
+    <header class="stack">
+      <p class="label">Payment received</p>
+      <h1>Thank you{plan ? ` for your ${PLANS[plan].label.toLowerCase()}` : ''}</h1>
+      <p>{next}</p>
+    </header>
+    <section class="panel panel-sunk stack">
+      <p class="small">Your receipt comes by email. If anything looks wrong, reply to it and we'll fix it within one business day.</p>
+      <p class="small muted">Paid placement never changes inspection records, license records or reviews.</p>
+    </section>
+    <p><a class="btn btn-primary" href="/">Back to Broward Spotlight</a></p>
+  </div>
+</Base>

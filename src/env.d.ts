@@ -13,6 +13,7 @@ interface Env {
   GHL_LINK_FEATURED?: string;
   GHL_LINK_SPOTLIGHT?: string;
   GHL_LINK_AD?: string;
+  PAYMENTS_LIVE?: string;
 }
 declare namespace App {
   interface Locals extends Runtime {}

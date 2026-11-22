@@ -12,12 +12,17 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
   if (ct.includes('json')) body = await request.json().catch(() => ({}));
   else { const f = await request.formData(); body = Object.fromEntries(f.entries()); }
   const pick = (...keys: string[]) => { for (const k of keys) { const v = k.split('.').reduce((o: any, p) => o?.[p], body); if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
-  const plan = (url.searchParams.get('plan') ?? pick('plan', 'customData.plan')).toLowerCase();
+  // Which plan: from the address, or from the product name / amount HighLevel sends.
+  const raw = JSON.stringify(body).toLowerCase();
+  const amt = Number(pick('amount', 'customData.amount', 'payment.amount', 'payment.total_amount')) || 0;
+  const plan = (url.searchParams.get('plan') ?? pick('plan', 'customData.plan')).toLowerCase()
+    || (raw.includes('featured listing') ? 'featured' : raw.includes('spotlight article') ? 'spotlight' : raw.includes('display ad') ? 'ad' : '')
+    || (amt === 79 ? 'featured' : amt === 249 ? 'spotlight' : amt === 99 ? 'ad' : '');
   const event = ((url.searchParams.get('event') ?? pick('event', 'customData.event')) || 'paid').toLowerCase();
   const email = pick('email', 'contact.email', 'customData.email');
   if (!email) return Response.json({ ok: false, note: 'no email in message' }, { status: 400 });
   const name = pick('full_name', 'name', 'contact.name', 'first_name');
-  const amount = Number(pick('amount', 'customData.amount', 'payment.amount')) || null;
+  const amount = amt || null;
   const result = await applyPayment(e, { event, plan, email, name, amount, business: str(pick('company_name', 'business_name'), 120) });
   return Response.json(result);
 };

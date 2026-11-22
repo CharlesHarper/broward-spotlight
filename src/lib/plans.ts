@@ -11,6 +11,6 @@ export const money = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 
 /** The HighLevel payment link for a plan, set in wrangler.jsonc once the links exist. */
 export function payLink(e: Env, plan: PlanKey): string | null {
   const v = plan === 'featured' ? e.GHL_LINK_FEATURED : plan === 'spotlight' ? e.GHL_LINK_SPOTLIGHT : e.GHL_LINK_AD;
-  return v && /^https:\/\//.test(v) ? v : null;
+  return e.PAYMENTS_LIVE === '1' && v && /^https:\/\//.test(v) ? v : null;
 }
 export const addDays = (from: Date, days: number) => new Date(from.getTime() + days * 864e5).toISOString().slice(0, 10);
