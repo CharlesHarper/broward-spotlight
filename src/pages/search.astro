@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import ListingCard from '../components/ListingCard.astro';
 import Featured from '../components/Featured.astro';
 import Pager from '../components/Pager.astro';
-import { search, featured } from '../lib/db';
+import { search, featured, searchCategories } from '../lib/db';
 import { CATEGORIES, CITY_NAMES, categoryLabel } from '../lib/shared';
 import { env } from '../lib/util';
 const db = env(Astro.locals).DB;
@@ -13,10 +13,18 @@ const city = cityParam && CITY_NAMES[cityParam] ? cityParam : null;
 const catParam = Astro.url.searchParams.get('category');
 const category = CATEGORIES.some((c) => c.slug === catParam) ? catParam : null;
 const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
-const [res, feat] = await Promise.all([
+const [res, feat, cats] = await Promise.all([
   search(db, q, { city, category, page }),
   page === 1 ? featured(db, { city, category, limit: 2 }) : Promise.resolve([]),
+  searchCategories(db, q, city),
 ]);
+const link = (cat: string | null) => {
+  const u = new URLSearchParams();
+  if (q) u.set('q', q);
+  if (city) u.set('city', city);
+  if (cat) u.set('category', cat);
+  return `/search?${u}`;
+};
 const where = city ? CITY_NAMES[city] : 'Broward';
 ---
 <Base title={q ? `“${q}” in ${where}` : `Search ${where}`} search q={q} city={city} noindex>
@@ -25,6 +33,16 @@ const where = city ? CITY_NAMES[city] : 'Broward';
       <h1>{q ? <>Results for “{q}”</> : 'All businesses'}</h1>
       <p class="muted">{res.total.toLocaleString()} {res.total === 1 ? 'match' : 'matches'} in {where}{category ? ` · ${categoryLabel(category)}` : ''}</p>
     </header>
+    {cats.length > 1 && (
+      <nav class="chips" aria-label="Filter by category">
+        <a class="chip" href={link(null)} aria-current={!category ? 'page' : undefined}>All</a>
+        {cats.map((c) => (
+          <a class="chip" href={link(c.category)} aria-current={category === c.category ? 'page' : undefined}>
+            {categoryLabel(c.category)} <span class="n">{c.n.toLocaleString()}</span>
+          </a>
+        ))}
+      </nav>
+    )}
     <Featured items={feat} />
     {res.items.length ? <div class="grid">{res.items.map((b) => <ListingCard b={b} />)}</div> : (
       <div class="notice">

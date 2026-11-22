@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import CategoryIcon from '../components/CategoryIcon.astro';
 import { CATEGORIES } from '../lib/shared';
 import { env } from '../lib/util';
 const { results } = await env(Astro.locals).DB.prepare(`SELECT category, COUNT(*) AS n FROM businesses WHERE status = 'active' GROUP BY category`).all<{ category: string; n: number }>();
@@ -8,10 +9,11 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=600');
 ---
 <Base title="Categories" description="Every kind of Broward County business, from restaurants and food trucks to roofers, salons and auto shops." search>
   <div class="wrap stack-lg">
-    <header class="stack"><h1>Every kind of Broward business</h1></header>
+    <header class="stack"><h1>Every kind of Broward business</h1><p class="muted">Pick a category to see every listing across Broward County, with state inspection and license records where they apply.</p></header>
     <div class="grid">
       {CATEGORIES.map((c) => (
-        <a class="card" href={`/category/${c.slug}`}>
+        <a class="card cat-card" href={`/category/${c.slug}`}>
+          <span class:list={['thumb', `tint-${c.slug}`]}><CategoryIcon slug={c.slug} size={22} /></span>
           <h3>{c.label}</h3>
           <p class="meta">{c.blurb}</p>
           <span class="record muted">{(counts[c.slug] ?? 0).toLocaleString()} listings</span>

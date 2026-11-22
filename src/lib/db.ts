@@ -79,10 +79,23 @@ export async function search(db: D1Database, q: string, opts: { city?: string | 
   const w = where.join(' AND ');
   const [rows, count] = await db.batch([
     db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}
-      ORDER BY bm25(businesses_fts, 10.0, 2.0, 2.0, 1.0) LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`).bind(...binds),
+      ORDER BY bm25(businesses_fts, 10.0, 2.0, 2.0, 1.0) - b.claimed * 4.0
+        - ((b.last_inspection_date IS NOT NULL) + (b.phone IS NOT NULL) + (b.website IS NOT NULL)) * 0.75 LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`).bind(...binds),
     db.prepare(`SELECT COUNT(*) AS n FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}`).bind(...binds),
   ]);
   return { items: rows.results as unknown as Business[], total: (count.results[0] as { n: number }).n, page };
+}
+
+/** How many matches a search has in each category, for the filter chips. */
+export async function searchCategories(db: D1Database, q: string, city: string | null) {
+  const fq = ftsQuery(q);
+  if (!fq) return [];
+  const binds: unknown[] = [fq];
+  let w = `businesses_fts MATCH ?1 AND b.status = 'active'`;
+  if (city) { w += ` AND b.city_slug = ?2`; binds.push(city); }
+  const { results } = await db.prepare(`SELECT b.category, COUNT(*) AS n FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid
+    WHERE ${w} GROUP BY b.category ORDER BY n DESC`).bind(...binds).all<{ category: string; n: number }>();
+  return results;
 }
 
 export async function getBusiness(db: D1Database, slug: string) {
