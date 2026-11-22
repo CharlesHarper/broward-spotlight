@@ -23,6 +23,10 @@ export interface Review {
 }
 
 export const PAGE_SIZE = 24;
+/** Extra columns every listing card uses: the first owner photo and the review summary. */
+export const CARD_EXTRAS = `(SELECT p.key FROM photos p WHERE p.business_id = b.id AND p.status = 'live' ORDER BY p.id LIMIT 1) AS photo_key,
+  (SELECT COUNT(*) FROM reviews r WHERE r.business_id = b.id AND r.status = 'approved') AS review_n,
+  (SELECT ROUND(AVG(rating), 1) FROM reviews r WHERE r.business_id = b.id AND r.status = 'approved') AS review_avg`;
 const today = () => new Date().toISOString().slice(0, 10);
 
 const ACTIVE_PLACEMENT = `EXISTS (SELECT 1 FROM placements p WHERE p.business_id = b.id AND p.starts_on <= ?1 AND p.ends_on >= ?1
@@ -32,7 +36,7 @@ const ACTIVE_PLACEMENT = `EXISTS (SELECT 1 FROM placements p WHERE p.business_id
 export async function featured(db: D1Database, opts: { city?: string | null; category?: string | null; limit?: number }) {
   const { results } = await db
     .prepare(
-      `SELECT b.*, 1 AS featured FROM businesses b WHERE b.status = 'active' AND ${ACTIVE_PLACEMENT}
+      `SELECT b.*, ${CARD_EXTRAS}, 1 AS featured FROM businesses b WHERE b.status = 'active' AND ${ACTIVE_PLACEMENT}
        ORDER BY random() LIMIT ?4`,
     )
     .bind(today(), opts.city ?? null, opts.category ?? null, opts.limit ?? 3)
@@ -51,7 +55,7 @@ export async function listBusinesses(
   const page = Math.max(1, opts.page ?? 1);
   const w = where.join(' AND ');
   const [rows, count] = await db.batch([
-    db.prepare(`SELECT b.* FROM businesses b WHERE ${w} ORDER BY b.name COLLATE NOCASE LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`).bind(...binds),
+    db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses b WHERE ${w} ORDER BY b.claimed DESC, (b.website IS NOT NULL OR b.phone IS NOT NULL) DESC, (b.last_inspection_date IS NOT NULL) DESC, b.name COLLATE NOCASE LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`).bind(...binds),
     db.prepare(`SELECT COUNT(*) AS n FROM businesses b WHERE ${w}`).bind(...binds),
   ]);
   return { items: rows.results as unknown as Business[], total: (count.results[0] as { n: number }).n, page };
@@ -74,7 +78,7 @@ export async function search(db: D1Database, q: string, opts: { city?: string | 
   if (opts.category) { where.push(`b.category = ?${binds.length + 1}`); binds.push(opts.category); }
   const w = where.join(' AND ');
   const [rows, count] = await db.batch([
-    db.prepare(`SELECT b.* FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}
+    db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}
       ORDER BY bm25(businesses_fts, 10.0, 2.0, 2.0, 1.0) LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`).bind(...binds),
     db.prepare(`SELECT COUNT(*) AS n FROM businesses_fts JOIN businesses b ON b.id = businesses_fts.rowid WHERE ${w}`).bind(...binds),
   ]);
@@ -106,8 +110,8 @@ export async function businessDetail(db: D1Database, b: Business) {
 /** Other listings of the same kind in the same city. Fuller listings first, then the nearest neighbours so every page links to different ones. */
 export async function related(db: D1Database, b: Business, limit = 6) {
   if (!b.city_slug) return [];
-  const { results } = await db.prepare(`SELECT * FROM businesses WHERE city_slug = ?1 AND category = ?2 AND status = 'active' AND id != ?3
-    ORDER BY claimed DESC, (website IS NOT NULL) DESC, (phone IS NOT NULL) DESC, (last_inspection_date IS NOT NULL) DESC, ABS(id - ?3) LIMIT ?4`)
+  const { results } = await db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses b WHERE city_slug = ?1 AND category = ?2 AND status = 'active' AND id != ?3
+    ORDER BY claimed DESC, (website IS NOT NULL) DESC, (phone IS NOT NULL) DESC, (last_inspection_date IS NOT NULL) DESC, ABS(b.id - ?3) LIMIT ?4`)
     .bind(b.city_slug, b.category, b.id, limit).all<Business>();
   return results;
 }

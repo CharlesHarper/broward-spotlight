@@ -91,3 +91,15 @@ export async function stopInviteReminders(e: Env, businessId: number) {
   if (!b?.contact_email || !b.invited_at) return false;
   return ghl(e, 'listing_claimed', { email: b.contact_email, business_name: b.name, business_url: new URL(`/business/${b.slug}`, e.SITE_URL).toString(), tags: ['spotlight-owner'] });
 }
+
+/** Makes someone the verified owner and emails them their private owner link through HighLevel. */
+export async function grantOwnership(e: Env, businessId: number, email: string, name?: string) {
+  const t = token(24);
+  const b = await e.DB.prepare(`UPDATE businesses SET claimed = 1, owner_token = ?, owner_email = ?, updated_at = datetime('now') WHERE id = ? RETURNING name, slug, contact_email`)
+    .bind(t, email, businessId).first<{ name: string; slug: string; contact_email: string | null }>();
+  if (!b) return null;
+  const site = (p: string) => new URL(p, e.SITE_URL).toString();
+  await ghl(e, 'owner_link', { email, name: name ?? '', business_name: b.name, owner_url: site(`/owner/${t}`), business_url: site(`/business/${b.slug}`), tags: ['spotlight-owner'] });
+  if (b.contact_email && b.contact_email.toLowerCase() !== email.toLowerCase()) await stopInviteReminders(e, businessId);
+  return t;
+}

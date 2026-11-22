@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { env, str, token, ghl, normUrl, isEmail, stopInviteReminders } from '../../../lib/util';
+import { env, str, token, ghl, normUrl, isEmail, stopInviteReminders, grantOwnership } from '../../../lib/util';
 import { CATEGORIES, CITY_NAMES, slugify } from '../../../lib/shared';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -13,16 +13,8 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const back = (msg: string, tab = '') => redirect(`/admin?${tab ? `tab=${tab}&` : ''}msg=${encodeURIComponent(msg)}`, 303);
   const site = (p: string) => new URL(p, e.SITE_URL).toString();
 
-  async function sendOwnerLink(businessId: number, email: string, name?: string) {
-    const t = token(24);
-    const b = await db.prepare(`UPDATE businesses SET claimed = 1, owner_token = ?, owner_email = ?, updated_at = datetime('now') WHERE id = ? RETURNING name, slug`)
-      .bind(t, email, businessId).first<{ name: string; slug: string }>();
-    if (b) await ghl(e, 'owner_link', { email, name, business_name: b.name, owner_url: site(`/owner/${t}`), business_url: site(`/business/${b.slug}`), tags: ['spotlight-owner'] });
-    // If we invited a different address for this business, stop its reminders too.
-    const inv = await db.prepare(`SELECT contact_email FROM businesses WHERE id = ?`).bind(businessId).first<{ contact_email: string | null }>();
-    if (inv?.contact_email && inv.contact_email.toLowerCase() !== email.toLowerCase()) await stopInviteReminders(e, businessId);
-    return t;
-  }
+  const sendOwnerLink = (businessId: number, email: string, name?: string) => grantOwnership(e, businessId, email, name);
+
 
   switch (action) {
     case 'review_approve': {

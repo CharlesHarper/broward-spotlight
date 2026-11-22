@@ -1,5 +1,5 @@
 ---
-interface Props { name: 'ok' | 'warn' | 'alert' | 'neutral' | 'check' | 'pin' | 'phone' | 'globe' | 'map' }
+interface Props { name: 'ok' | 'warn' | 'alert' | 'neutral' | 'check' | 'pin' | 'phone' | 'globe' | 'map' | 'share' }
 const { name } = Astro.props;
 const paths: Record<string, string> = {
   ok: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
@@ -10,6 +10,7 @@ const paths: Record<string, string> = {
   pin: '<path d="M12 21s-7-6.3-7-12a7 7 0 0 1 14 0c0 5.7-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
   phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/>',
   map: '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>',
 };
 ---

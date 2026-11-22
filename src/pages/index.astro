@@ -4,19 +4,26 @@ import ListingCard from '../components/ListingCard.astro';
 import Featured from '../components/Featured.astro';
 import Status from '../components/Status.astro';
 import Ad from '../components/Ad.astro';
-import { featured, recentFlagged, cityCounts, activeAd } from '../lib/db';
+import CategoryIcon from '../components/CategoryIcon.astro';
+import { featured, recentFlagged, cityCounts, activeAd, CARD_EXTRAS } from '../lib/db';
+import type { Business, Inspection } from '../lib/db';
 import { CATEGORIES, CITY_NAMES } from '../lib/shared';
 import { env, fmtDate } from '../lib/util';
 
 const db = env(Astro.locals).DB;
-const [feat, flagged, cities, ad, totals] = await Promise.all([
+const [feat, flagged, cities, ad, totals, cats, verified, latest] = await Promise.all([
   featured(db, { limit: 3 }),
   recentFlagged(db, 14, 6),
   cityCounts(db),
   activeAd(db, 'home'),
-  db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE status='active') AS biz, (SELECT COUNT(*) FROM inspections) AS insp, (SELECT MAX(date) FROM inspections) AS latest`).first<{ biz: number; insp: number; latest: string | null }>(),
+  db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE status='active') AS biz, (SELECT COUNT(*) FROM inspections) AS insp, (SELECT MAX(date) FROM inspections) AS latest, (SELECT COUNT(*) FROM businesses WHERE claimed = 1) AS owners`).first<{ biz: number; insp: number; latest: string | null; owners: number }>(),
+  db.prepare(`SELECT category, COUNT(*) AS n FROM businesses WHERE status = 'active' GROUP BY category`).all<{ category: string; n: number }>().then((r) => Object.fromEntries(r.results.map((x) => [x.category, x.n]))),
+  db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses b WHERE b.status = 'active' AND b.claimed = 1 ORDER BY (photo_key IS NOT NULL) DESC, b.updated_at DESC LIMIT 6`).all<Business>().then((r) => r.results),
+  db.prepare(`SELECT i.*, b.name, b.slug, b.city FROM inspections i JOIN businesses b ON b.id = i.business_id WHERE b.status = 'active' ORDER BY i.date DESC, i.id DESC LIMIT 6`).all<Inspection>().then((r) => r.results),
 ]);
 const topCities = cities.filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+const report = flagged.items.length ? flagged.items : latest;
+const quick = ['restaurants', 'auto', 'home-services', 'beauty', 'health'];
 const site = env(Astro.locals).SITE_URL;
 const homeLd = {
   '@context': 'https://schema.org',
@@ -33,7 +40,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
     <div class="wrap">
       <p class="label" style="color:var(--spot)">Broward County, on the record</p>
       <h1>Know who you're <span class="hl">trusting</span> before you go.</h1>
-      <p>State inspection results, license records and real reviews for {totals?.biz?.toLocaleString() ?? 0} Broward businesses. Nobody can pay to change a record.</p>
+      <p>Look up any Broward business: state inspection results, license records and real reviews. Nobody can pay to change a record.</p>
       <form action="/search" method="get" role="search">
         <label class="sr" for="hq">Search</label>
         <input id="hq" name="q" placeholder="Try “tacos”, “barber”, a business name…" />
@@ -44,6 +51,10 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
         </select>
         <button class="btn btn-spot" type="submit">Search</button>
       </form>
+      <nav class="hero-cats" aria-label="Popular categories">
+        {quick.map((slug) => { const c = CATEGORIES.find((x) => x.slug === slug)!; return <a href={`/category/${slug}`}><CategoryIcon slug={slug} size={16} />{c.label}</a>; })}
+      </nav>
+      <p class="hero-proof"><span><b>{(totals?.biz ?? 0).toLocaleString()}</b> businesses</span><span><b>{(totals?.insp ?? 0).toLocaleString()}</b> state inspections</span><span><b>31</b> cities</span></p>
     </div>
   </div>
 
@@ -51,57 +62,68 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
     <Featured items={feat} />
 
     <section>
-      <div class="section-head">
-        <h2>This week's inspection report</h2>
-        <a href="/inspections">Full report</a>
+      <div class="section-head"><h2>Browse by category</h2><a href="/categories">All categories</a></div>
+      <div class="tiles">
+        {CATEGORIES.map((c) => (
+          <a class="tile" href={`/category/${c.slug}`}>
+            <span class:list={['thumb', `tint-${c.slug}`]}><CategoryIcon slug={c.slug} size={22} /></span>
+            <span><b>{c.label}</b>{cats[c.slug] ? <small>{cats[c.slug].toLocaleString()}</small> : null}</span>
+          </a>
+        ))}
       </div>
-      {flagged.items.length ? (
-        <div class="grid">
-          {flagged.items.map((i) => (
-            <a class="card" href={`/business/${i.slug}`}>
-              <span class="record muted">{fmtDate(i.date)} · {i.type}</span>
-              <h3>{i.name}</h3>
-              <p class="meta">{i.city}</p>
-              <Status tone={i.tone} text={i.disposition} />
-            </a>
-          ))}
-        </div>
-      ) : (
-        <p class="notice">No warnings or emergency orders in Broward in the last 14 days of state records{totals?.latest ? `, which run through ${fmtDate(totals.latest)}` : ''}.</p>
-      )}
-      <p class="small muted" style="margin-top:10px">From Florida DBPR food service inspections. Shown exactly as the state records them.</p>
     </section>
 
     <section>
-      <div class="section-head"><h2>Browse by category</h2><a href="/categories">All categories</a></div>
-      <div class="chips" style="flex-wrap:wrap">
-        {CATEGORIES.map((c) => <a class="chip" href={`/category/${c.slug}`}>{c.label}</a>)}
+      <div class="section-head">
+        <h2>{flagged.items.length ? "This week's inspection warnings" : 'Latest restaurant inspections'}</h2>
+        <a href="/inspections">Full report</a>
       </div>
+      <div class="grid">
+        {report.map((i) => (
+          <a class="card" href={`/business/${i.slug}`}>
+            <span class="record muted">{fmtDate(i.date)}{i.type ? ` · ${i.type}` : ''}</span>
+            <h3>{i.name}</h3>
+            <p class="meta">{i.city}</p>
+            <Status tone={i.tone} text={i.disposition} />
+          </a>
+        ))}
+      </div>
+      <p class="small muted" style="margin-top:10px">From Florida DBPR food service inspections{totals?.latest ? `, through ${fmtDate(totals.latest)}` : ''}. Shown exactly as the state records them.</p>
     </section>
+
+    {verified.length > 0 && (
+      <section>
+        <div class="section-head"><h2>Owner-verified businesses</h2><a href="/claim">Verify yours</a></div>
+        <div class="grid">{verified.map((b) => <ListingCard b={b} />)}</div>
+      </section>
+    )}
 
     <section>
       <div class="section-head"><h2>Browse by city</h2><a href="/cities">All 31 cities</a></div>
-      <div class="chips" style="flex-wrap:wrap">
-        {(topCities.length ? topCities : cities).map((c) => <a class="chip" href={`/city/${c.slug}`}>{c.name}{c.n > 0 && <span class="n">{c.n.toLocaleString()}</span>}</a>)}
+      <div class="city-tiles">
+        {(topCities.length ? topCities : cities).slice(0, 12).map((c) => <a href={`/city/${c.slug}`}>{c.name}{c.n > 0 && <small>{c.n.toLocaleString()}</small>}</a>)}
       </div>
     </section>
 
     <Ad ad={ad} />
 
     <section>
-      <div class="section-head"><h2>How Broward Spotlight works</h2><a href="/about">About us</a></div>
-      <div class="grid">
-        <div class="card"><h3>Facts from the record</h3><p class="meta">Listings start from Broward County and State of Florida public records, including every restaurant inspection, shown in the state's own words.</p></div>
-        <div class="card"><h3>Owners add the details</h3><p class="meta">Business owners claim their listing free to add their phone, website, hours and story, and to reply to reviews.</p></div>
-        <div class="card"><h3>Customers tell the rest</h3><p class="meta">Real customers leave reviews. We post every genuine one, good or bad, and nobody can pay to change that.</p></div>
+      <div class="section-head"><h2>How Broward Spotlight works</h2><a href="/how-it-works">Our standards</a></div>
+      <div class="steps">
+        <div class="step"><span class="num">1</span><h3>Facts from the record</h3><p class="small muted">Every listing starts from Broward County and State of Florida records, including every restaurant inspection, in the state's own words.</p></div>
+        <div class="step"><span class="num">2</span><h3>Owners add the details</h3><p class="small muted">Owners claim their listing free to add their phone, website, hours, photos and story, and to reply to reviews.</p></div>
+        <div class="step"><span class="num">3</span><h3>Customers tell the rest</h3><p class="small muted">Real customers leave reviews. We post every genuine one, good or bad, and nobody can pay to change that.</p></div>
       </div>
     </section>
 
-    <section class="panel panel-sunk">
-      <h2>Own a Broward business?</h2>
-      <p>Your listing may already be here, built from public records. Claim it for free to add your phone, hours, website and photos, and to answer reviews. Not listed yet? Add it in two minutes.</p>
+    <section class="owner-band">
+      <div class="stack" style="gap:8px">
+        <p class="label" style="color:var(--spot)">For business owners</p>
+        <h2>Your business is probably already here.</h2>
+        <p>Claim it free in about a minute. Add your phone, hours, website and photos, answer reviews, and get the Owner verified check.</p>
+      </div>
       <div class="row-actions">
-        <a class="btn btn-primary" href="/claim">Find and claim your listing</a>
+        <a class="btn btn-spot" href="/claim">Find and claim your listing</a>
         <a class="btn" href="/add-business">Add your business</a>
       </div>
     </section>

@@ -2,24 +2,27 @@
 import type { Business } from '../lib/db';
 import Status from './Status.astro';
 import Icon from './Icon.astro';
+import CategoryIcon from './CategoryIcon.astro';
 import { fmtDate } from '../lib/util';
-interface Props { b: Business; featured?: boolean }
+interface Props { b: Business & { photo_key?: string | null; review_n?: number; review_avg?: number | null }; featured?: boolean }
 const { b, featured = false } = Astro.props;
+const type = b.subtype ?? '';
 ---
-<a class:list={['card', { 'is-featured': featured }]} href={`/business/${b.slug}`}>
-  {(featured || b.claimed || b.source === 'dbpr' || b.btr_account) && (
-    <div class="badges">
-      {featured && <span class="badge badge-featured">Featured</span>}
-      {b.claimed ? <span class="badge badge-verified"><Icon name="check" />Owner verified</span> : null}
-      {(b.source === 'dbpr' || b.btr_account) && <span class="badge badge-record">Public record</span>}
-    </div>
-  )}
-  <h3>{b.name}</h3>
-  <p class="meta">{[b.subtype, b.city].filter(Boolean).join(' · ')}</p>
-  {b.last_inspection_disposition && (
-    <div class="foot">
-      <Status tone={b.last_inspection_tone} text={b.last_inspection_disposition} />
-      <span class="record muted">{fmtDate(b.last_inspection_date)}</span>
-    </div>
-  )}
+<a class:list={['card', 'lcard', { 'is-featured': featured }]} href={`/business/${b.slug}`}>
+  <span class:list={['thumb', `tint-${b.category}`]}>
+    {b.photo_key ? <img src={`/photo/${b.photo_key}.jpg`} alt="" loading="lazy" decoding="async" /> : <CategoryIcon slug={b.category} size={26} />}
+  </span>
+  <span class="lcard-body">
+    {featured && <span class="badge badge-featured" style="justify-self:start">Featured</span>}
+    <span class="lcard-name">{b.name}{b.claimed ? <span class="verified" title="Owner verified"><Icon name="check" /><span class="sr">Owner verified</span></span> : null}</span>
+    <span class="meta">{[type, b.city].filter(Boolean).join(' · ')}</span>
+    {(b.review_n || b.last_inspection_disposition || b.phone || b.website) && (
+      <span class="lcard-foot">
+        {b.review_n ? <span class="rating"><span aria-hidden="true">★</span> {Number(b.review_avg ?? 0).toFixed(1)} <span class="muted">({b.review_n})</span></span> : null}
+        {b.last_inspection_disposition && <Status tone={b.last_inspection_tone} text={b.last_inspection_disposition} />}
+        {b.last_inspection_date && <span class="record muted">{fmtDate(b.last_inspection_date)}</span>}
+        {!b.last_inspection_disposition && (b.phone || b.website) && <span class="has">{b.phone && <Icon name="phone" />}{b.website && <Icon name="globe" />}<span>{[b.phone && 'Phone', b.website && 'Website'].filter(Boolean).join(' & ')}</span></span>}
+      </span>
+    )}
+  </span>
 </a>

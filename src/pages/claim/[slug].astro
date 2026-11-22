@@ -1,32 +1,59 @@
 ---
 import Base from '../../layouts/Base.astro';
 import BotFields from '../../components/BotFields.astro';
-import { getBusiness } from '../../lib/db';
+import ListingCard from '../../components/ListingCard.astro';
+import Icon from '../../components/Icon.astro';
+import { getBusiness, CARD_EXTRAS } from '../../lib/db';
+import type { Business } from '../../lib/db';
 import { env } from '../../lib/util';
-const b = await getBusiness(env(Astro.locals).DB, Astro.params.slug!);
-if (!b) return Astro.rewrite('/404');
+const db = env(Astro.locals).DB;
+const b0 = await getBusiness(db, Astro.params.slug!);
+if (!b0) return Astro.rewrite('/404');
+const b = (await db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses b WHERE b.id = ?`).bind(b0.id).first<Business>())!;
+let site: string | null = null;
+try { site = b.website ? new URL(b.website).hostname.replace(/^www\./, '') : null; } catch {}
+const perks = [
+  ['phone', 'Your phone, website and hours', 'Shown on your listing so customers can reach you in one tap.'],
+  ['check', 'The Owner verified check', 'Customers see the listing is run by the real business.'],
+  ['globe', 'Photos and your own description', 'Up to 6 photos and a description in your words.'],
+  ['ok', 'Reply to every review', 'Get an email when a review comes in and answer it publicly.'],
+] as const;
 ---
 <Base title={`Claim ${b.name}`} noindex>
-  <div class="wrap stack-lg" style="max-width:680px">
+  <div class="wrap stack-lg" style="max-width:760px">
     <header class="stack">
-      <p class="label">Free for every business</p>
+      <p class="label">Free for every Broward business</p>
       <h1>Claim {b.name}</h1>
-      <p>Once you're verified you can add your phone, website, hours, photos, description and social links, and reply to reviews. You'll get an Owner verified badge.</p>
+      <p>This listing was built from public records. Claim it free to make it yours. Claiming never removes reviews or changes state records.</p>
     </header>
+    <ListingCard b={b} />
     {b.claimed ? <p class="notice">This listing has already been claimed. If that's a mistake, <a href={`/correction/${b.slug}`}>tell us</a>.</p> : (
-      <form method="post" action="/api/claim" class="panel stack">
-        <input type="hidden" name="slug" value={b.slug} />
-        <BotFields />
-        <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
-        <label class="field"><span>Your role</span>
-          <select name="role" required><option value="">Choose one</option><option>Owner</option><option>Manager</option><option>Marketing or agency</option></select>
-        </label>
-        <label class="field"><span>Work email</span><input name="email" type="email" required autocomplete="email" /><small>An email at the business's own website domain gets verified fastest.</small></label>
-        <label class="field"><span>Phone</span><input name="phone" type="tel" required autocomplete="tel" /></label>
-        <label class="field"><span>Anything we should know? (optional)</span><textarea name="note" maxlength="1000"></textarea></label>
-        <p class="small muted">How we verify: we call or email the business at its listed public number or address to confirm you. Claiming is free, and it never removes reviews or changes state records.</p>
-        <button class="btn btn-primary" type="submit">Send my claim</button>
-      </form>
+      <>
+        <section class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+          {perks.map(([icon, title, text]) => (
+            <div class="tile" style="align-items:flex-start">
+              <span class="thumb tint-health" style="width:40px;height:40px"><Icon name={icon} /></span>
+              <span><b>{title}</b><span class="small muted">{text}</span></span>
+            </div>
+          ))}
+        </section>
+        <form method="post" action="/api/claim" class="panel stack" id="claim-form">
+          <h2>Your details</h2>
+          <input type="hidden" name="slug" value={b.slug} />
+          <BotFields />
+          <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
+          <label class="field"><span>Your role</span>
+            <select name="role" required><option value="">Choose one</option><option>Owner</option><option>Manager</option><option>Marketing or agency</option></select>
+          </label>
+          <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" />
+            <small>{site ? <>Use the email on your website or an address <b>@{site}</b> and you're verified instantly. Any other email is checked by our team, usually within one business day.</> : 'We send your private owner link to this address. Our team confirms new owners, usually within one business day.'}</small>
+          </label>
+          <label class="field"><span>Phone</span><input name="phone" type="tel" required autocomplete="tel" /></label>
+          <label class="field"><span>Anything we should know? (optional)</span><textarea name="note" maxlength="1000"></textarea></label>
+          <button class="btn btn-spot" type="submit">Claim my listing</button>
+          <p class="small muted">Free. No credit card. We never sell your information.</p>
+        </form>
+      </>
     )}
   </div>
 </Base>
