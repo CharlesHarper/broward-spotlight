@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getStory } from '../../lib/stories';
+import { env } from '../../lib/util';
+const s = await getStory(Astro.params.slug!).catch(() => null);
+if (!s) return Astro.rewrite('/404');
+const site = env(Astro.locals).SITE_URL;
+const hasOwnLd = /application\/ld\+json/i.test(s.html);
+const ld = hasOwnLd ? null : { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: s.title, description: s.description || undefined,
+  image: s.image || undefined, datePublished: s.published || undefined, mainEntityOfPage: `${site}/post/${s.slug}`,
+  author: { '@type': 'Organization', name: s.author || 'Broward Spotlight Editorial Team' }, publisher: { '@type': 'Organization', name: 'Broward Spotlight', logo: { '@type': 'ImageObject', url: `${site}/og.png` } } };
+Astro.response.headers.set('Cache-Control', 'public, max-age=600');
+---
+<Base title={s.title} description={s.description || `${s.title} on Broward Spotlight.`} image={s.image} jsonld={ld}>
+  <article class="wrap story">
+    <nav class="label" aria-label="Breadcrumb"><a href="/">Broward</a> / <a href="/stories">Stories</a>{s.category ? ` / ${s.category}` : ''}</nav>
+    <h1>{s.title}</h1>
+    <p class="small muted">{[s.author || 'Broward Spotlight Editorial Team', s.dateText].filter(Boolean).join(' · ')}</p>
+    {s.image && <img class="story-cover" src={s.image} alt="" />}
+    <div class="story-body" set:html={s.html} />
+    <aside class="panel panel-sunk stack" style="margin-top:32px">
+      <h2 style="font-size:18px">Claim or update this Spotlight</h2>
+      <p class="small">Own or manage this business? Contact Broward Spotlight to request an update, add information, correct business details, or provide new photos for this feature.</p>
+      <div class="row-actions"><a class="btn btn-sm" href="/advertise#inquire">Contact us</a><a class="btn btn-sm" href="/stories">More stories</a></div>
+    </aside>
+  </article>
+</Base>
