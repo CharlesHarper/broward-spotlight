@@ -152,6 +152,37 @@ export async function discoverFeeds(domain: string) {
 }
 
 // Places that are towns or villages rather than cities, for the source label.
+/**
+ * Cities whose sites have no RSS. Each reader uses one public page the city already publishes:
+ * Fort Lauderdale lists every news story in its sitemap; Coconut Creek shows upcoming events on its home page.
+ */
+interface Extra { news: { title: string; url: string; published: string | null }[]; events: { title: string; url: string; starts: string; timeText: string | null }[] }
+const slugTitle = (u: string) => decodeURIComponent(u.split('/').filter(Boolean).pop() ?? '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+const EXTRA: Record<string, () => Promise<Extra>> = {
+  'fort-lauderdale': async () => {
+    const xml = (await get('https://www.fortlauderdale.gov/sitemap.xml')) ?? '';
+    const news = [...xml.matchAll(/<loc>([^<]+\/Residents\/City-News\/[^<\/]+)<\/loc>\s*<lastmod>([^<]+)<\/lastmod>/g)]
+      .map((m) => ({ url: decode(m[1]), title: slugTitle(m[1]), published: m[2].slice(0, 19).replace('T', ' ') }))
+      .filter((n) => n.title.length > 8)
+      .sort((a, b) => b.published.localeCompare(a.published)).slice(0, 20);
+    return { news, events: [] };
+  },
+  'coconut-creek': async () => {
+    const html = (await get('https://www.coconutcreek.gov/')) ?? '';
+    const events: Extra['events'] = [];
+    for (const m of html.matchAll(/<a href="((?:https:\/\/www\.coconutcreek\.gov)?\/news-and-events\/events\/(\d{4})\/(\d{2})\/(\d{2})\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
+      const title = text((m[5].match(/<h3[^>]*>([\s\S]*?)<\/h3>/) ?? [])[1] ?? '');
+      const when = text((m[5].match(/class="date"[^>]*>([\s\S]*?)<\/div>/) ?? [])[1] ?? '');
+      if (!title || SKIP_EVENT.test(title)) continue;
+      const t = clock(when);
+      const url = m[1].startsWith('http') ? m[1] : `https://www.coconutcreek.gov${m[1]}`;
+      const timeText = when.replace(/^[A-Za-z]+\s+\d{1,2},\s*\d{4}\s*/, '').trim() || null;
+      if (!events.some((e) => e.url === url)) events.push({ title, url, starts: `${m[2]}-${m[3]}-${m[4]}${t ? ` ${t}` : ''}`, timeText });
+    }
+    return { news: [], events };
+  },
+};
+
 const TOWNS: Record<string, string> = { davie: 'Town', 'pembroke-park': 'Town', 'southwest-ranches': 'Town', 'lauderdale-by-the-sea': 'Town', 'hillsboro-beach': 'Town', 'lazy-lake': 'Village', 'sea-ranch-lakes': 'Village' };
 
 type City = { slug: string; name: string; website: string | null; news_feed: string | null; events_feed: string | null; feeds_checked_at: string | null };
@@ -198,11 +229,22 @@ export async function refreshCityFeeds(db: D1Database, perRun = 4) {
           .bind(c.slug, eventTitle(i.title).slice(0, 300), i.link, source, i.location?.slice(0, 300) || null, w.starts, w.ends, w.timeText));
       }
     }
+    const extra = EXTRA[c.slug] ? await EXTRA[c.slug]().catch(() => null) : null;
+    for (const n of extra?.news ?? []) {
+      stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, published_at) VALUES (?, 'news', ?, ?, ?, ?)
+        ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, source = excluded.source, fetched_at = datetime('now')`)
+        .bind(c.slug, n.title.slice(0, 300), n.url, source, n.published));
+    }
+    for (const ev of extra?.events ?? []) {
+      stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, starts_at, time_text) VALUES (?, 'event', ?, ?, ?, ?, ?)
+        ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, source = excluded.source, starts_at = excluded.starts_at, time_text = excluded.time_text, fetched_at = datetime('now')`)
+        .bind(c.slug, ev.title.slice(0, 300), ev.url, source, ev.starts, ev.timeText));
+    }
     stmts.push(db.prepare(`UPDATE cities SET website = COALESCE(website, ?), news_feed = ?, events_feed = ?, feeds_checked_at = datetime('now') WHERE slug = ?`)
       .bind(domain ? `https://${domain.replace(/^https?:\/\//, '')}` : null, news, events, c.slug));
     await db.batch(stmts);
     added += stmts.length - 1;
-    notes.push(`${c.slug}:${news ? 'N' : '-'}${events ? 'E' : '-'}`);
+    notes.push(`${c.slug}:${news ? 'N' : '-'}${events ? 'E' : '-'}${extra ? `+${extra.news.length + extra.events.length}` : ''}`);
   }
   // Drop news older than 6 months and events that have finished.
   await db.prepare(`DELETE FROM city_items WHERE (kind = 'news' AND published_at < datetime('now', '-180 days')) OR (kind = 'event' AND COALESCE(ends_at, starts_at) < datetime('now', '-1 day'))`).run();

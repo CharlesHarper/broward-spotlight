@@ -25,7 +25,8 @@ const orders = tab === 'money' ? (await db.prepare(`SELECT * FROM orders WHERE s
 const E = env(Astro.locals);
 const hookUrl = tab === 'money' ? `${E.SITE_URL.replace(/\/$/, '')}/api/ghl-payment?key=${await paymentsKey(db)}` : '';
 const links = { featured: payLink(E, 'featured'), spotlight: payLink(E, 'spotlight'), ad: payLink(E, 'ad') };
-const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER BY name`).all<any>()).results : [];
+const cities = tab === 'cities' ? (await db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM city_items i WHERE i.city_slug = c.slug AND i.kind = 'news') AS news_n,
+  (SELECT COUNT(*) FROM city_items i WHERE i.city_slug = c.slug AND i.kind = 'event' AND COALESCE(i.ends_at, i.starts_at) >= datetime('now', '-5 hours')) AS events_n FROM cities c ORDER BY name`).all<any>()).results : [];
 ---
 <Base title="Admin" noindex>
   <div class="wrap stack-lg">
@@ -41,7 +42,7 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER 
         <a class="chip" href="/admin" aria-current={tab === 'queue' ? 'page' : undefined}>Queue ({R.length + C.length + P.length + L.length})</a>
         <a class="chip" href="/admin?tab=find" aria-current={tab === 'find' ? 'page' : undefined}>Find &amp; edit listings</a>
         <a class="chip" href="/admin?tab=money" aria-current={tab === 'money' ? 'page' : undefined}>Featured &amp; ads</a>
-        <a class="chip" href="/admin?tab=cities" aria-current={tab === 'cities' ? 'page' : undefined}>City intros</a>
+        <a class="chip" href="/admin?tab=cities" aria-current={tab === 'cities' ? 'page' : undefined}>Cities &amp; feeds</a>
         <a class="chip" href="/admin/business">Add a listing</a>
         <a class="chip" href="/admin/export.csv">Export unclaimed (CSV for GHL)</a>
       </nav>
@@ -180,6 +181,17 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT * FROM cities ORDER 
 
     {tab === 'cities' && (
       <section class="stack">
+        <details class="panel">
+          <summary>City news &amp; events feeds ({cities.filter((c: any) => c.news_n || c.events_n).length} of {cities.length} cities have items)</summary>
+          <div class="table-scroll"><table>
+            <thead><tr><th>City</th><th class="num">News</th><th class="num">Upcoming events</th><th>Last checked</th><th>Source</th></tr></thead>
+            <tbody>{cities.map((c: any) => (
+              <tr><td><a href={`/city/${c.slug}`}>{c.name}</a></td><td class="num">{c.news_n}</td><td class="num">{c.events_n}</td><td class="small">{c.feeds_checked_at ?? 'not yet'}</td>
+                <td class="small">{c.news_feed || c.events_feed ? 'RSS feed' : (c.news_n || c.events_n) ? 'City web page' : c.website ? 'No feed found' : 'No website'}</td></tr>
+            ))}</tbody>
+          </table></div>
+          <p class="small muted">Checked automatically twice a day. Cities with no feed are re-checked weekly.</p>
+        </details>
         <p class="muted">A short, original intro makes each city page unique. Two or three sentences about the local business scene are plenty. Leave blank to show only the numbers.</p>
         {cities.map((c: any) => (
           <form method="post" action="/api/admin/action" class="panel stack">
