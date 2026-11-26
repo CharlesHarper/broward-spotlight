@@ -216,6 +216,22 @@ export async function cityItems(db: D1Database, slug: string, kind: 'news' | 'ev
   const { results } = await db.prepare(sql).bind(slug, limit).all<CityItem>().catch(() => ({ results: [] as CityItem[] }));
   return results;
 }
+/** Upcoming events or latest news across every Broward city, optionally one city. */
+export async function browardItems(db: D1Database, kind: 'news' | 'event', limit = 30, city?: string | null) {
+  const where = city ? 'AND i.city_slug = ?' : '';
+  const sql = kind === 'event'
+    ? `SELECT i.*, c.name AS city_name FROM city_items i LEFT JOIN cities c ON c.slug = i.city_slug WHERE i.kind = 'event' AND COALESCE(i.ends_at, i.starts_at) >= datetime('now', '-5 hours') ${where} ORDER BY i.starts_at LIMIT ?`
+    : `SELECT i.*, c.name AS city_name FROM city_items i LEFT JOIN cities c ON c.slug = i.city_slug WHERE i.kind = 'news' ${where} ORDER BY i.published_at DESC LIMIT ?`;
+  const st = city ? db.prepare(sql).bind(city, limit) : db.prepare(sql).bind(limit);
+  const { results } = await st.all<CityItem & { city_name: string | null }>().catch(() => ({ results: [] as (CityItem & { city_name: string | null })[] }));
+  return results;
+}
+/** Cities that have at least one current item, with counts, for filter chips. */
+export async function feedCities(db: D1Database) {
+  const { results } = await db.prepare(`SELECT i.city_slug, c.name, SUM(i.kind = 'event' AND COALESCE(i.ends_at, i.starts_at) >= datetime('now', '-5 hours')) AS events, SUM(i.kind = 'news') AS news
+    FROM city_items i JOIN cities c ON c.slug = i.city_slug GROUP BY i.city_slug ORDER BY c.name`).all<{ city_slug: string; name: string; events: number; news: number }>().catch(() => ({ results: [] as { city_slug: string; name: string; events: number; news: number }[] }));
+  return results;
+}
 export interface CityItem { id: number; city_slug: string; kind: string; title: string; url: string; source: string | null; summary: string | null; published_at: string | null; starts_at: string | null; ends_at: string | null; time_text: string | null; location: string | null }
 
 /** "2026-12-02 16:00" → "Wed, Dec 2" */

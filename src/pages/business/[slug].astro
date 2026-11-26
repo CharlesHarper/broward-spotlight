@@ -3,10 +3,10 @@ import Base from '../../layouts/Base.astro';
 import Status from '../../components/Status.astro';
 import Icon from '../../components/Icon.astro';
 import BotFields from '../../components/BotFields.astro';
-import { getBusiness, businessDetail, related } from '../../lib/db';
+import { getBusiness, businessDetail, related, isThin } from '../../lib/db';
 import ListingCard from '../../components/ListingCard.astro';
 import CategoryIcon from '../../components/CategoryIcon.astro';
-import { categoryLabel, CITY_NAMES, titleCase } from '../../lib/shared';
+import { categoryLabel, CITY_NAMES, titleCase, plainDisposition, plainInspectionType } from '../../lib/shared';
 import { env, fmtDate, fmtPhone, telHref, mapsUrl } from '../../lib/util';
 import { subcatOf } from '../../lib/subcats';
 
@@ -46,7 +46,7 @@ const sentences: string[] = [
   `${b.name} is listed in ${cityName ?? 'Broward County'}, Florida under ${categoryLabel(b.category)}${b.subtype ? ` (${b.subtype.toLowerCase()})` : ''}.`,
 ];
 if (b.started_on) sentences.push(`Broward County business tax records list a business start date of ${fmtDate(b.started_on)}.`);
-if (latest) sentences.push(`Its most recent state inspection on file, on ${fmtDate(latest.date)}, ended with the result "${latest.disposition}"${latest.high_priority != null ? `, with ${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'} noted` : ''}. Florida DBPR has ${d.inspections.length} ${d.inspections.length === 1 ? 'inspection' : 'inspections'} on file for this location in the current records.`);
+if (latest) sentences.push(`Its most recent state inspection on file, on ${fmtDate(latest.date)}, ended with the result "${latest.disposition}"${plainDisposition(latest.disposition) ? ` (${plainDisposition(latest.disposition)!.short.toLowerCase()})` : ''}${latest.high_priority != null ? `, with ${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'} noted` : ''}. Florida DBPR has ${d.inspections.length} ${d.inspections.length === 1 ? 'inspection' : 'inspections'} on file for this location in the current records.`);
 if (d.reviewStats.n > 0) sentences.push(`Customers have left ${d.reviewStats.n} ${d.reviewStats.n === 1 ? 'review' : 'reviews'} on Broward Spotlight, averaging ${d.reviewStats.avg} out of 5.`);
 if (b.claimed) sentences.push('The owner has verified this listing.');
 const summary = sentences.join(' ');
@@ -67,14 +67,14 @@ if (cityName) faq.push({ q: `Where is ${b.name} located?`, a: showStreet ? `${b.
 if (b.phone) faq.push({ q: `What is the phone number for ${b.name}?`, a: `You can reach ${b.name} at ${fmtPhone(b.phone)}.` });
 if (b.website) faq.push({ q: `Does ${b.name} have a website?`, a: `Yes. ${b.name}'s website is ${b.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}.` });
 if (b.hours) faq.push({ q: `What are ${b.name}'s hours?`, a: `${b.name} lists these hours: ${b.hours.replace(/\n+/g, '; ')}. Hours can change, so call ahead to confirm.` });
-if (latest) faq.push({ q: `When was ${b.name} last inspected?`, a: `Florida's Division of Hotels and Restaurants last inspected ${b.name} on ${fmtDate(latest.date)}. The result was "${latest.disposition}".` });
+if (latest) faq.push({ q: `When was ${b.name} last inspected?`, a: `Florida's Division of Hotels and Restaurants last inspected ${b.name} on ${fmtDate(latest.date)}. The result was "${latest.disposition}".${plainDisposition(latest.disposition) ? ` In plain words: ${plainDisposition(latest.disposition)!.long}` : ''}` });
 if (b.started_on) { const yrs = new Date().getUTCFullYear() - new Date(b.started_on + 'T12:00:00Z').getUTCFullYear(); faq.push({ q: `How long has ${b.name} been in business?`, a: `Broward County business tax records list a start date of ${fmtDate(b.started_on)}${yrs >= 1 ? `, about ${yrs} ${yrs === 1 ? 'year' : 'years'} ago` : ''}.` }); }
 if (b.dbpr_license) faq.push({ q: `Is ${b.name} licensed by the state?`, a: `Yes. ${b.name} holds Florida food service license ${b.dbpr_license}${b.license_expires ? `, which runs through ${fmtDate(b.license_expires)}` : ''}.` });
 if (d.reviewStats.n > 0) faq.push({ q: `What do customers say about ${b.name}?`, a: `${d.reviewStats.n} ${d.reviewStats.n === 1 ? 'customer has' : 'customers have'} reviewed ${b.name} on Broward Spotlight, with an average of ${d.reviewStats.avg} out of 5.` });
 // Search-result description: the owner's own words when there are any, otherwise the record summary. Cut at a word, about 160 characters.
 const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
 const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : summary);
-const thin = b.source === 'county' && !b.claimed && !b.description && !b.phone && !b.website && d.reviewStats.n === 0 && d.mentions.length === 0;
+const thin = isThin(b, d.reviewStats.n, d.mentions.length);
 const jsonld = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -128,14 +128,14 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
         <button class="btn" type="button" data-share={`${b.name} on Broward Spotlight`}><Icon name="share" />Share</button>
       </div>
       <dl class="glance">
-        {isFood && <div><dt>Last inspection</dt><dd>{latest ? <a href="#inspections" class={`tone tone-${latest.tone}`} style="color:inherit;text-decoration:none">{latest.disposition}</a> : 'None on file'}</dd></div>}
+        {isFood && <div><dt>Last inspection</dt><dd>{latest ? <a href="#inspections" class={`tone tone-${latest.tone}`} style="color:inherit;text-decoration:none" title={`State record: ${latest.disposition}`}>{plainDisposition(latest.disposition)?.short ?? latest.disposition}</a> : 'None on file'}</dd></div>}
         {b.started_on ? <div><dt>In business since</dt><dd>{new Date(b.started_on + 'T12:00:00Z').getUTCFullYear()}</dd></div> : null}
         <div><dt>Reviews</dt><dd>{d.reviewStats.n ? `★ ${d.reviewStats.avg} of 5 (${d.reviewStats.n})` : <a href="#write-review">Be the first</a>}</dd></div>
         <div><dt>Owner</dt><dd>{b.claimed ? 'Verified' : 'Not yet claimed'}</dd></div>
         {b.phone && !isFood ? <div><dt>Phone</dt><dd><a href={telHref(b.phone)}>{fmtPhone(b.phone)}</a></dd></div> : null}
         {b.hours && !b.started_on ? <div><dt>Hours</dt><dd class="small" style="white-space:pre-line">{b.hours.split('\n')[0]}</dd></div> : null}
       </dl>
-      {!b.claimed && <div class="claim-strip"><span><b>Own {b.name}?</b> Claim this listing free to add your phone, hours and photos.</span><a class="btn btn-sm btn-primary" href={`/claim/${b.slug}`}>Claim it</a></div>}
+      {!b.claimed && <div class="claim-strip"><span><b>Own {b.name}?</b> Claim this listing free to add your phone, hours and photos.</span><a class="btn btn-sm btn-primary" href={`/claim/${b.slug}`} rel="nofollow">Claim it</a></div>}
     </header>
 
     <div class="biz-layout">
@@ -173,20 +173,21 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
                 <ul class="insp-list">
                   {d.inspections.map((i) => (
                     <li>
-                      <div class="insp-top"><span class="record">{fmtDate(i.date)}</span><span class="small muted">{i.type}</span></div>
-                      <div><Status tone={i.tone} text={i.disposition} /></div>
+                      <div class="insp-top"><span class="record">{fmtDate(i.date)}</span><span class="small muted">{plainInspectionType(i.type) ?? i.type}</span></div>
+                      <div><Status tone={i.tone} text={i.disposition} plain /></div>
+                      {plainDisposition(i.disposition) && <p class="small insp-plain">{plainDisposition(i.disposition)!.long} <span class="muted">State's wording: "{i.disposition}"{i.type ? `, ${i.type}` : ''}.</span></p>}
                       {(i.total_violations !== null || i.high_priority !== null) && (
                         <div class="insp-counts">
-                          <span>High priority <b>{i.high_priority ?? 0}</b></span>
-                          <span>Intermediate <b>{i.intermediate ?? 0}</b></span>
-                          <span>Basic <b>{i.basic ?? 0}</b></span>
+                          <span title="Could directly make someone sick if not fixed">High priority <b>{i.high_priority ?? 0}</b></span>
+                          <span title="Could lead to a food safety risk if left alone">Intermediate <b>{i.intermediate ?? 0}</b></span>
+                          <span title="Good practice items, like cleaning or paperwork">Basic <b>{i.basic ?? 0}</b></span>
                           <span>Total <b>{i.total_violations ?? 0}</b></span>
                         </div>
                       )}
                     </li>
                   ))}
                 </ul>
-                <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants. Results are shown in the state's own words. A violation noted on inspection day may have been corrected on the spot or at a later call-back. <a href="https://www2.myfloridalicense.com/hotels-restaurants/public-records/" target="_blank" rel="noopener">Official records</a>.</p>
+                <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants. Each result is explained in plain words, with the state's exact wording beside it. High priority violations are ones that could directly make someone sick; intermediate ones could lead to a risk; basic ones are good-practice items like cleaning or paperwork. A violation noted on inspection day may have been corrected on the spot or at a later call-back. <a href="https://www2.myfloridalicense.com/hotels-restaurants/public-records/" target="_blank" rel="noopener">Official records</a>.</p>
               </>
             ) : <p class="notice">No state inspections on file for this location in the records we've imported.</p>}
           </section>
@@ -262,7 +263,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
           </dl>
           {b.btr_account && <p class="small muted">Source: Broward County Local Business Tax records.</p>}
           {b.osm_id && !b.claimed && <p class="small muted">Some contact details and hours from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>.</p>}
-          {b.website_source === 'auto' && !b.claimed && <p class="small muted">Website matched automatically. <a href={`/correction/${b.slug}`}>Wrong site?</a></p>}
+          {b.website_source === 'auto' && !b.claimed && <p class="small muted">Website matched automatically. <a href={`/correction/${b.slug}`} rel="nofollow">Wrong site?</a></p>}
           {b.dbpr_license && <a class="small" href="https://www.myfloridalicense.com/wl11.asp?mode=0" target="_blank" rel="noopener">Verify this license with the state</a>}
         </section>
 
@@ -283,7 +284,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=120');
 
 
 
-        <a class="small" href={`/correction/${b.slug}`}>Report a mistake on this page</a>
+        <a class="small" href={`/correction/${b.slug}`} rel="nofollow">Report a mistake on this page</a>
       </aside>
     </div>
     {more.length > 0 && b.city_slug && (

@@ -9,9 +9,12 @@ import { featured, recentFlagged, cityCounts, activeAd, CARD_EXTRAS } from '../l
 import type { Business, Inspection } from '../lib/db';
 import { CATEGORIES, CITY_NAMES } from '../lib/shared';
 import { env, fmtDate } from '../lib/util';
+import CityItems from '../components/CityItems.astro';
+import { browardItems } from '../lib/citynews';
+import { plainInspectionType } from '../lib/shared';
 
 const db = env(Astro.locals).DB;
-const [feat, flagged, cities, ad, totals, cats, verified, latest] = await Promise.all([
+const [feat, flagged, cities, ad, totals, cats, verified, latest, events, news] = await Promise.all([
   featured(db, { limit: 3 }),
   recentFlagged(db, 14, 6),
   cityCounts(db),
@@ -20,6 +23,8 @@ const [feat, flagged, cities, ad, totals, cats, verified, latest] = await Promis
   db.prepare(`SELECT category, COUNT(*) AS n FROM businesses WHERE status = 'active' GROUP BY category`).all<{ category: string; n: number }>().then((r) => Object.fromEntries(r.results.map((x) => [x.category, x.n]))),
   db.prepare(`SELECT b.*, ${CARD_EXTRAS} FROM businesses b WHERE b.status = 'active' AND b.claimed = 1 ORDER BY (photo_key IS NOT NULL) DESC, b.updated_at DESC LIMIT 6`).all<Business>().then((r) => r.results),
   db.prepare(`SELECT i.*, b.name, b.slug, b.city FROM inspections i JOIN businesses b ON b.id = i.business_id WHERE b.status = 'active' ORDER BY i.date DESC, i.id DESC LIMIT 6`).all<Inspection>().then((r) => r.results),
+  browardItems(db, 'event', 5),
+  browardItems(db, 'news', 5),
 ]);
 const topCities = cities.filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
 const report = flagged.items.length ? flagged.items : latest;
@@ -81,15 +86,25 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
       <div class="grid">
         {report.map((i) => (
           <a class="card" href={`/business/${i.slug}`}>
-            <span class="record muted">{fmtDate(i.date)}{i.type ? ` · ${i.type}` : ''}</span>
+            <span class="record muted">{fmtDate(i.date)}{i.type ? ` · ${plainInspectionType(i.type) ?? i.type}` : ''}</span>
             <h3>{i.name}</h3>
             <p class="meta">{i.city}</p>
-            <Status tone={i.tone} text={i.disposition} />
+            <Status tone={i.tone} text={i.disposition} plain />
           </a>
         ))}
       </div>
-      <p class="small muted" style="margin-top:10px">From Florida DBPR food service inspections{totals?.latest ? `, through ${fmtDate(totals.latest)}` : ''}. Shown exactly as the state records them.</p>
+      <p class="small muted" style="margin-top:10px">From Florida DBPR food service inspections{totals?.latest ? `, through ${fmtDate(totals.latest)}` : ''}. Results are in plain words; <a href="/inspections#what-results-mean">What the results mean</a>.</p>
     </section>
+
+    {(events.length > 0 || news.length > 0) && (
+      <section>
+        <div class="section-head"><h2>This week in Broward</h2><a href="/news">All news &amp; events</a></div>
+        <div class="split-2">
+          {events.length > 0 && <div class="panel stack"><h3>Coming up</h3><CityItems items={events} kind="event" showCity /><a class="small" href="/news">More events</a></div>}
+          {news.length > 0 && <div class="panel stack"><h3>City news</h3><CityItems items={news} kind="news" /><a class="small" href="/news?show=news">More news</a></div>}
+        </div>
+      </section>
+    )}
 
     {verified.length > 0 && (
       <section>

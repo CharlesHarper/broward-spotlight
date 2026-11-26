@@ -351,3 +351,13 @@ details.panel[open] > summary::after { content: "–"; }
 .ev-body small, .city-news small { color: var(--ink-muted); font-size: 13px; }
 .city-news li { display: grid; gap: 2px; }
 .city-news p { color: var(--ink-muted); font-size: 14px; margin-top: 4px; }
+
+/* Two panels side by side on wider screens */
+.split-2 { display: grid; gap: 16px; }
+@media (min-width: 820px) { .split-2 { grid-template-columns: 1fr 1fr; } }
+.insp-plain { margin: 0; max-width: 70ch; }
+.legend { display: grid; gap: 10px; margin: 0; }
+.legend > div { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.legend > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.legend dt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.legend dd { margin: 0; color: var(--ink-muted); font-size: 14px; }

@@ -3,6 +3,20 @@ import Base from '../layouts/Base.astro';
 import Status from '../components/Status.astro';
 import { recentFlagged } from '../lib/db';
 import { env, fmtDate } from '../lib/util';
+import { plainDisposition, type Tone } from '../lib/shared';
+// The results Broward inspections most often end with, in the state's words, explained.
+const LEGEND: { state: string; tone: Tone }[] = [
+  { state: 'Inspection Completed - No Further Action', tone: 'ok' },
+  { state: 'Warning Issued', tone: 'warn' },
+  { state: 'Call Back - Complied', tone: 'ok' },
+  { state: 'Call Back - Extension given, pending', tone: 'warn' },
+  { state: 'Call Back - Admin. complaint recommended', tone: 'warn' },
+  { state: 'Administrative complaint recommended', tone: 'warn' },
+  { state: 'Emergency Order recommended', tone: 'alert' },
+  { state: 'Emergency Order Callback Time Extension', tone: 'alert' },
+  { state: 'Emergency Order Callback Not Complied', tone: 'alert' },
+  { state: 'Emergency Order Callback Complied', tone: 'warn' },
+];
 const r = await recentFlagged(env(Astro.locals).DB, 14, 200);
 const total = Object.values(r.tones).reduce((a, b) => a + b, 0);
 const byDate = new Map<string, typeof r.items>();
@@ -14,14 +28,26 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=600');
     <header class="stack" style="max-width:760px">
       <p class="label">Updated weekly from state records</p>
       <h1>Broward inspection report</h1>
-      <p>Every food service inspection in Broward since {fmtDate(r.since)} that ended in a warning, call-back or emergency order, in the state's own words. Most inspections end with no further action; those are counted below but not listed.</p>
+      <p>Every restaurant and food service inspection in Broward since {fmtDate(r.since)} that ended in a warning, a follow-up problem or a closure. Most inspections pass; those are counted below but not listed. Each result is in plain words; the state's exact wording is on each business page and in the guide below.</p>
     </header>
     <div class="stats">
       <div class="stat"><b>{total.toLocaleString()}</b><span>Inspections in the period</span></div>
-      <div class="stat"><b>{(r.tones.ok ?? 0).toLocaleString()}</b><span>No further action or complied</span></div>
-      <div class="stat"><b>{(r.tones.warn ?? 0).toLocaleString()}</b><span>Warnings and call-backs</span></div>
-      <div class="stat"><b>{(r.tones.alert ?? 0).toLocaleString()}</b><span>Emergency orders</span></div>
+      <div class="stat"><b>{(r.tones.ok ?? 0).toLocaleString()}</b><span>Passed or fixed</span></div>
+      <div class="stat"><b>{(r.tones.warn ?? 0).toLocaleString()}</b><span>Warnings and follow-ups</span></div>
+      <div class="stat"><b>{(r.tones.alert ?? 0).toLocaleString()}</b><span>Ordered closed</span></div>
     </div>
+    <details class="panel" id="what-results-mean">
+      <summary>What the results mean</summary>
+      <dl class="legend">
+        {LEGEND.map((l) => { const p = plainDisposition(l.state)!; return (
+          <div><dt><Status tone={l.tone} text={l.state} plain /><span class="small muted">State's wording: "{l.state}"</span></dt><dd>{p.long}</dd></div>
+        ); })}
+        <div><dt><b>High priority violation</b></dt><dd>Something that could directly make someone sick if not fixed, such as food held at the wrong temperature.</dd></div>
+        <div><dt><b>Intermediate violation</b></dt><dd>Something that could lead to a food safety risk if left alone.</dd></div>
+        <div><dt><b>Basic violation</b></dt><dd>A good-practice item, such as cleaning, repairs or paperwork.</dd></div>
+      </dl>
+      <p class="small muted">Inspection types: a routine visit is the regular unannounced check; a call-back is a follow-up visit to check earlier fixes; a complaint inspection follows a report from the public; a licensing inspection is for a new or changed license.</p>
+    </details>
     {[...byDate.entries()].map(([date, items]) => (
       <section class="stack">
         <h2 class="record" style="font-size:16px">{fmtDate(date)}</h2>
@@ -29,13 +55,13 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=600');
           <table>
             <thead><tr><th>Business</th><th>City</th><th>Result</th><th class="num">High priority</th></tr></thead>
             <tbody>{items.map((i) => (
-              <tr><td><a href={`/business/${i.slug}`}>{i.name}</a></td><td class="small">{i.city}</td><td><Status tone={i.tone} text={i.disposition} /></td><td class="num">{i.high_priority ?? '—'}</td></tr>
+              <tr><td><a href={`/business/${i.slug}`}>{i.name}</a></td><td class="small">{i.city}</td><td><Status tone={i.tone} text={i.disposition} plain /></td><td class="num">{i.high_priority ?? '—'}</td></tr>
             ))}</tbody>
           </table>
         </div>
       </section>
     ))}
     {r.items.length === 0 && <p class="notice">No warnings or emergency orders in this period's records.</p>}
-    <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants, food service inspection data. A warning means the inspector found violations to be corrected, usually checked at a call-back visit. An emergency order closes a business until it passes a follow-up inspection. Records can lag behind corrections; see each listing for its full history.</p>
+    <p class="small muted">Source: Florida Department of Business and Professional Regulation, Division of Hotels and Restaurants, food service inspection data. Records can lag behind corrections; see each listing for its full history.</p>
   </div>
 </Base>

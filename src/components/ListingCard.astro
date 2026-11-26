@@ -19,7 +19,7 @@ const type = b.subtype ?? '';
     {(b.review_n || b.last_inspection_disposition || b.phone || b.website) && (
       <span class="lcard-foot">
         {b.review_n ? <span class="rating"><span aria-hidden="true">★</span> {Number(b.review_avg ?? 0).toFixed(1)} <span class="muted">({b.review_n})</span></span> : null}
-        {b.last_inspection_disposition && <Status tone={b.last_inspection_tone} text={b.last_inspection_disposition} />}
+        {b.last_inspection_disposition && <Status tone={b.last_inspection_tone} text={b.last_inspection_disposition} plain prefix="Inspection: " />}
         {b.last_inspection_date && <span class="record muted">{fmtDate(b.last_inspection_date)}</span>}
         {!b.last_inspection_disposition && (b.phone || b.website) && <span class="has">{b.phone && <Icon name="phone" />}{b.website && <Icon name="globe" />}<span>{[b.phone && 'Phone', b.website && 'Website'].filter(Boolean).join(' & ')}</span></span>}
       </span>

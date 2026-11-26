@@ -24,6 +24,8 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
   }
   const legacy = LEGACY[p.replace(/\/$/, '') || '/'];
   if (legacy && p !== '/') return Response.redirect(new URL(legacy, ctx.url).toString(), 301);
+  // Any other old GoHighLevel blog address (author pages, old posts) goes to Stories instead of a 404.
+  if (p.startsWith('/spotlights/') || p === '/post/new-blog-post') return Response.redirect(new URL('/stories', ctx.url).toString(), 301);
   if (p.startsWith('/admin') || p.startsWith('/api/admin')) {
     const pw = ctx.locals.runtime?.env?.ADMIN_PASSWORD;
     if (!pw) return new Response('Set the ADMIN_PASSWORD secret to use the admin.', { status: 503 });

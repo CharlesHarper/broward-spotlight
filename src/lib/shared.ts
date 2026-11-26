@@ -101,6 +101,41 @@ export function dispositionTone(disposition: string | null | undefined): Tone {
 }
 
 /**
+ * Plain-English meaning of a state inspection result. `short` is a few words for badges,
+ * `long` one or two sentences for the listing page. The state's own wording is always shown alongside.
+ */
+export function plainDisposition(disposition: string | null | undefined): { short: string; long: string } | null {
+  const d = (disposition ?? '').toUpperCase().replace(/\s+/g, ' ');
+  if (!d) return null;
+  const eo = d.includes('EMERGENCY ORDER') || d.includes('EMERGENCY CLOSURE');
+  const cb = d.includes('CALLBACK') || d.includes('CALL BACK');
+  if (eo && d.includes('NOT COMPLIED')) return { short: 'Still closed after recheck', long: 'This was a follow-up visit after the state ordered the business closed. The problems were not fixed yet, so the closure stayed in place.' };
+  if (eo && d.includes('COMPLIED')) return { short: 'Fixed and allowed to reopen', long: 'This was a follow-up visit after the state ordered the business closed. The inspector found the problems fixed, so it could reopen.' };
+  if (eo && (d.includes('EXTENSION'))) return { short: 'Closure recheck: more time given', long: 'This was a follow-up visit after the state ordered the business closed. The inspector gave the business more time to finish the fixes.' };
+  if (eo) return { short: 'Ordered closed', long: 'The inspector found problems serious enough to close the business on the spot until they were fixed and it passed a follow-up visit.' };
+  if (cb && d.includes('NOT COMPLIED')) return { short: 'Recheck: not fixed yet', long: 'This was a follow-up visit to check earlier violations. Some were still not fixed.' };
+  if (cb && (d.includes('ADMIN') || d.includes('COMPLAINT'))) return { short: 'Recheck: state case recommended', long: 'This was a follow-up visit to check earlier violations. Some were still not fixed, so the inspector recommended a formal state case (an "administrative complaint"), which can lead to a fine.' };
+  if (cb && d.includes('EXTENSION')) return { short: 'Recheck: more time given', long: 'This was a follow-up visit to check earlier violations. The inspector gave the business more time to finish the fixes.' };
+  if (cb && d.includes('COMPLIED')) return { short: 'Recheck: all fixed', long: 'This was a follow-up visit to check earlier violations. Everything had been fixed.' };
+  if (d.includes('ADMIN') && d.includes('COMPLAINT')) return { short: 'State case recommended', long: 'The inspector recommended a formal state case (an "administrative complaint"), which can lead to a fine.' };
+  if (d.includes('WARNING')) return { short: 'Warning, fixes due', long: 'The inspector found violations and gave the business a deadline to fix them. A follow-up visit (a "call-back") checks the fixes.' };
+  if (d.includes('EXTENSION')) return { short: 'More time given', long: 'The inspector gave the business more time to fix earlier violations.' };
+  if (d.includes('NO FURTHER ACTION')) return { short: 'Passed', long: 'The inspection is finished and no follow-up is needed. Any small issues were minor or fixed on the spot.' };
+  if (d.includes('CLOSED') || d.includes('OUT OF BUSINESS')) return { short: 'Location closed', long: 'The inspector found the location closed or no longer operating.' };
+  return null;
+}
+
+/** What each DBPR inspection type means. */
+export function plainInspectionType(type: string | null | undefined): string | null {
+  const t = (type ?? '').toUpperCase();
+  if (t.includes('CALL')) return 'Follow-up visit';
+  if (t.includes('COMPLAINT')) return 'After a public complaint';
+  if (t.includes('LICENS')) return 'New license check';
+  if (t.includes('ROUTINE')) return 'Routine visit';
+  return null;
+}
+
+/**
  * DBPR rank codes on the food service license file. Only codes we are sure of get a friendly label;
  * everything else shows as "Food service establishment". The importer logs every code it sees in
  * import_runs.note so this list can be extended after the first run.

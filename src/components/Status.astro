@@ -1,8 +1,11 @@
 ---
 import Icon from './Icon.astro';
-import type { Tone } from '../lib/shared';
-interface Props { tone?: Tone | null; text?: string | null }
-const { tone = 'neutral', text } = Astro.props;
+import { plainDisposition, type Tone } from '../lib/shared';
+/** `plain` shows an inspection result in everyday words, with the state's exact wording on hover. */
+interface Props { tone?: Tone | null; text?: string | null; plain?: boolean; prefix?: string }
+const { tone = 'neutral', text, plain = false, prefix } = Astro.props;
 const t = (tone ?? 'neutral') as Tone;
+const p = plain ? plainDisposition(text) : null;
+const shown = p ? p.short : text;
 ---
-{text && <span class={`status status-${t}`}><Icon name={t} /><span>{text}</span></span>}
+{text && <span class={`status status-${t}`} title={p ? `State record: ${text}` : undefined}><Icon name={t} /><span>{prefix}{shown}</span></span>}

@@ -2,8 +2,8 @@
 import type { CityItem } from '../lib/citynews';
 import { eventDay } from '../lib/citynews';
 import { fmtDate } from '../lib/util';
-interface Props { items: CityItem[]; kind: 'news' | 'event'; full?: boolean }
-const { items, kind, full = false } = Astro.props;
+interface Props { items: (CityItem & { city_name?: string | null })[]; kind: 'news' | 'event'; full?: boolean; showCity?: boolean }
+const { items, kind, full = false, showCity = false } = Astro.props;
 const place = (s: string | null) => (s ?? '').split('\n').map((x) => x.trim()).filter(Boolean).join(', ');
 ---
 {kind === 'event' ? (
@@ -13,7 +13,7 @@ const place = (s: string | null) => (s ?? '').split('\n').map((x) => x.trim()).f
         <span class="ev-date"><b>{eventDay(i.starts_at).split(', ')[1]}</b><small>{eventDay(i.starts_at).split(', ')[0]}</small></span>
         <span class="ev-body">
           <a href={i.url} target="_blank" rel="noopener">{i.title}</a>
-          <small>{[i.time_text, place(i.location)].filter(Boolean).join(' · ') || 'All day'}</small>
+          <small>{[showCity ? i.city_name : null, i.time_text, place(i.location)].filter(Boolean).join(' · ') || 'All day'}</small>
         </span>
       </li>
     ))}

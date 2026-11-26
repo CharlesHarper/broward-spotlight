@@ -24,6 +24,15 @@ export interface Review {
 }
 
 export const PAGE_SIZE = 24;
+
+/** One rule for "this listing is worth indexing", shared by the sitemap and the listing page's noindex. Empty strings count as missing. */
+export const INDEXABLE_SQL = `(source != 'county' OR claimed = 1 OR TRIM(COALESCE(description, '')) != '' OR TRIM(COALESCE(phone, '')) != '' OR TRIM(COALESCE(website, '')) != ''
+  OR EXISTS (SELECT 1 FROM reviews r WHERE r.business_id = businesses.id AND r.status = 'approved')
+  OR EXISTS (SELECT 1 FROM mentions m WHERE m.business_id = businesses.id))`;
+const filled = (v: unknown) => typeof v === 'string' ? v.trim() !== '' : v != null;
+export function isThin(b: { source: string; claimed: number | boolean; description?: string | null; phone?: string | null; website?: string | null }, reviews: number, mentions: number) {
+  return b.source === 'county' && !b.claimed && !filled(b.description) && !filled(b.phone) && !filled(b.website) && reviews === 0 && mentions === 0;
+}
 /** Extra columns every listing card uses: the first owner photo and the review summary. */
 export const CARD_EXTRAS = `(SELECT p.key FROM photos p WHERE p.business_id = b.id AND p.status = 'live' ORDER BY p.id LIMIT 1) AS photo_key,
   (SELECT COUNT(*) FROM reviews r WHERE r.business_id = b.id AND r.status = 'approved') AS review_n,
