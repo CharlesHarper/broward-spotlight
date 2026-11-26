@@ -1,7 +1,9 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import CityItems from '../../../components/CityItems.astro';
-import { cityRow } from '../../../lib/db';
+import ListingCard from '../../../components/ListingCard.astro';
+import Pager from '../../../components/Pager.astro';
+import { cityRow, listBusinesses } from '../../../lib/db';
 import { cityItems } from '../../../lib/citynews';
 import { env } from '../../../lib/util';
 
@@ -10,12 +12,14 @@ const slug = Astro.params.slug!;
 const city = await cityRow(e.DB, slug);
 if (!city) return Astro.rewrite('/404');
 const KIND = 'event' as 'event' | 'news';
-const items = await cityItems(e.DB, slug, KIND, 60);
+const page = Number(Astro.url.searchParams.get('page') ?? 1) || 1;
+// This address is also the "Events & venues" category for the city (DJs, venues, rentals), so both live here.
+const [items, venues] = await Promise.all([cityItems(e.DB, slug, KIND, 60), listBusinesses(e.DB, { city: slug, category: 'events', page })]);
 const site = e.SITE_URL.replace(/\/$/, '');
 const where = `${city.name}, FL`;
 const title = KIND === 'event' ? `Events in ${where}: this week and coming up` : `${city.name} news and city updates`;
 const description = KIND === 'event'
-  ? `Upcoming events, meetings and closures in ${where}, from the official city calendar. Updated daily.`
+  ? `Upcoming events, meetings and closures in ${where}, from the official city calendar, plus ${venues.total ? `${venues.total} ` : ''}local event venues, DJs, rentals and planners.`
   : `The latest ${city.name} city news and announcements, from the official city website. Updated daily.`;
 // Event details Google can read: name, date, place and the official page for each event.
 const isoLocal = (s: string) => `${s.replace(' ', 'T')}:00-05:00`;
@@ -37,8 +41,8 @@ const jsonld = {
 };
 Astro.response.headers.set('Cache-Control', 'public, max-age=900');
 ---
-<Base title={title} description={description} jsonld={jsonld} noindex={items.length < 3} canonical={`${site}/city/${slug}/events`}>
-  <div class="wrap stack-lg" style="max-width:860px">
+<Base title={title} description={description} jsonld={jsonld} noindex={(items.length < 3 && venues.total < 5) || page > 1} canonical={`${site}/city/${slug}/events`}>
+  <div class="wrap stack-lg" style="max-width:1100px">
     <header class="stack">
       <p class="label"><a href="/cities">Cities</a> / <a href={`/city/${slug}`}>{city.name}</a></p>
       <h1>{KIND === 'event' ? `Events in ${city.name}` : `${city.name} news`}</h1>
@@ -46,7 +50,14 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=900');
       <p class="small"><a href={`/city/${slug}/${KIND === 'event' ? 'news' : 'events'}`}>{KIND === 'event' ? `${city.name} news` : `Events in ${city.name}`}</a> · <a href={`/city/${slug}`}>Businesses in {city.name}</a></p>
     </header>
     {items.length ? <section class="panel"><CityItems items={items} kind={KIND} full /></section>
-      : <p class="notice">Nothing posted right now. We check the official {city.name} website every day.</p>}
+      : <p class="notice">No upcoming events posted right now. We check the official {city.name} website every day. <a href="/news">See events across Broward</a>.</p>}
+    {venues.total > 0 && (
+      <section class="stack">
+        <div class="section-head"><h2>Event venues, DJs &amp; planners in {city.name} <span class="muted small">({venues.total.toLocaleString()})</span></h2></div>
+        <div class="grid">{venues.items.map((b) => <ListingCard b={b} />)}</div>
+        <Pager page={venues.page} total={venues.total} base={Astro.url} />
+      </section>
+    )}
     {city.website && <p class="small muted">Source: <a href={city.website} target="_blank" rel="noopener">{city.website.replace(/^https?:\/\//, '')}</a>. Broward Spotlight is independent and not affiliated with the city.</p>}
   </div>
 </Base>

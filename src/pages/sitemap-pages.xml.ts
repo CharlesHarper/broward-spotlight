@@ -22,6 +22,7 @@ export const GET: APIRoute = async ({ locals }) => {
   // Spotlight stories from the HighLevel blog, shown on this site at /post/<slug>.
   const stories = await listStories(200).catch(() => []);
   if (stories.length) urls.push('/stories', ...stories.map((st) => `/post/${st.slug}`));
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${e.SITE_URL}${u}</loc></url>`).join('')}</urlset>`;
+  const unique = [...new Set(urls)];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${unique.map((u) => `<url><loc>${e.SITE_URL}${u}</loc></url>`).join('')}</urlset>`;
   return new Response(xml, { headers: { 'content-type': 'application/xml', 'cache-control': 'public, max-age=3600' } });
 };
