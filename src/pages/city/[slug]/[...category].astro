@@ -5,10 +5,11 @@ import Featured from '../../../components/Featured.astro';
 import Status from '../../../components/Status.astro';
 import Pager from '../../../components/Pager.astro';
 import Ad from '../../../components/Ad.astro';
-import { listBusinesses, featured, cityStats, cityRow, activeAd } from '../../../lib/db';
+import { listBusinesses, featured, cityStats, cityRow, activeAd, spotsTaken, FEATURED_SPOTS } from '../../../lib/db';
 import { CATEGORIES, categoryLabel } from '../../../lib/shared';
 import { env, fmtDate } from '../../../lib/util';
 import CityItems from '../../../components/CityItems.astro';
+import Subscribe from '../../../components/Subscribe.astro';
 import { cityItems } from '../../../lib/citynews';
 import { CITY_INFO, cityPhotoUrl } from '../../../data/cities';
 
@@ -48,6 +49,7 @@ const catFacts = catInfo && catStats ? [
   catStats.claimed ? `${catStats.claimed} ${catStats.claimed === 1 ? 'is' : 'are'} verified by the owner.` : '',
   `Covers: ${catInfo.blurb.charAt(0).toLowerCase()}${catInfo.blurb.slice(1)}`,
 ].filter(Boolean).join(' ') : '';
+const taken = category ? await spotsTaken(db, slug, category) : 0;
 const info = CITY_INFO[slug] ?? null;
 const photo = cityPhotoUrl(slug);
 const site = env(Astro.locals).SITE_URL;
@@ -124,6 +126,17 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
     </nav>
 
     <Featured items={feat} />
+    {category && list.total >= 5 && (
+      <aside class="panel spot-open">
+        {taken < FEATURED_SPOTS ? <>
+          <p><strong>{FEATURED_SPOTS - taken} of {FEATURED_SPOTS} Featured {FEATURED_SPOTS - taken === 1 ? 'spot' : 'spots'} open</strong> for {categoryLabel(category).toLowerCase()} in {city.name}. Your business at the top of this page, labeled Featured, for $79 a month.</p>
+          <a class="btn btn-spot btn-sm" href={`/claim?for=featured&city=${slug}&category=${category}`}>Get this spot</a>
+        </> : <>
+          <p><strong>All {FEATURED_SPOTS} Featured spots are taken</strong> for {categoryLabel(category).toLowerCase()} in {city.name}.</p>
+          <a class="btn btn-sm" href={`/advertise?waitlist=${slug}:${category}#inquire`}>Join the waitlist</a>
+        </>}
+      </aside>
+    )}
 
     <section>
       <div class="section-head">
@@ -136,6 +149,8 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 
     <Ad ad={ad} />
 
+    {!category && <Subscribe city={slug} compact source={`city-${slug}`} />}
+
     {!category && info && info.history.length > 0 && (
       <section class="panel stack history" id="history">
         <h2>History of {city.name}</h2>
@@ -146,7 +161,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
     )}
 
     {stats.recent.length > 0 && (
-      <section>
+      <section id="inspections">
         <div class="section-head"><h2>Latest inspections in {city.name}</h2><a href="/inspections">Countywide report</a></div>
         <div class="table-scroll">
           <table>

@@ -5,7 +5,7 @@ import { subcatsFor, subcatCounts } from '../lib/subcats';
 export const GET: APIRoute = async ({ locals }) => {
   const e = locals.runtime.env;
   const { results } = await e.DB.prepare(`SELECT c.slug FROM cities c WHERE EXISTS (SELECT 1 FROM businesses b WHERE b.city_slug = c.slug AND b.status = 'active')`).all<{ slug: string }>();
-  const urls = ['/', '/cities', '/categories', '/inspections', '/news', '/advertise', '/add-business', '/claim', '/how-it-works', '/about',
+  const urls = ['/', '/cities', '/categories', '/inspections', '/news', '/weekly', '/advertise', '/add-business', '/claim', '/how-it-works', '/about',
     ...results.map((r) => `/city/${r.slug}`), ...CATEGORIES.map((c) => `/category/${c.slug}`)];
   const combos = await e.DB.prepare(`SELECT city_slug, category, COUNT(*) AS n FROM businesses WHERE status = 'active' AND city_slug IN (SELECT slug FROM cities)
     GROUP BY city_slug, category HAVING n >= 5`).all<{ city_slug: string; category: string }>();

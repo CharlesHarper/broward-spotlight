@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import CityItems from '../components/CityItems.astro';
+import Subscribe from '../components/Subscribe.astro';
 import { browardItems, feedCities } from '../lib/citynews';
 import { CITY_NAMES } from '../lib/shared';
 import { env } from '../lib/util';
@@ -48,6 +49,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=900');
       news.length ? <section class="panel"><CityItems items={news} kind="news" full thumbs={!city} /></section>
         : <p class="notice">No city news posted{city ? ` for ${CITY_NAMES[city]}` : ''} right now. We check every day.</p>
     )}
+    <Subscribe city={city} source="news" />
     {city && <p class="small"><a href={`/city/${city}`}>Businesses in {CITY_NAMES[city]}</a> · <a href={`/city/${city}/events`}>{CITY_NAMES[city]} events page</a> · <a href={`/city/${city}/news`}>{CITY_NAMES[city]} news page</a></p>}
     <p class="small muted">Broward Spotlight is independent and not affiliated with any city. Items come from each city's public news and calendar feeds and from the headline feeds of WSVN 7News, Local 10 and NBC 6. Headlines link to the original story.</p>
   </div>

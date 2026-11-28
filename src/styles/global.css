@@ -377,3 +377,12 @@ details.panel[open] > summary::after { content: "–"; }
 .city-card { padding-top: 0; overflow: hidden; }
 .card-photo { display: block; width: calc(100% + 2 * var(--card-pad, 16px)); max-width: none; margin: 0 calc(-1 * var(--card-pad, 16px)) 10px; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line); }
 .card-photo-empty { display: grid; place-items: center; color: var(--ink-muted); font-weight: 700; font-size: 18px; background: linear-gradient(135deg, var(--line), transparent); }
+
+/* Newsletter signup */
+.subscribe { display: grid; gap: 12px; }
+.subscribe h2 { font-size: 20px; margin: 0; }
+.sub-form { display: grid; gap: 8px; grid-template-columns: 1fr; }
+@media (min-width: 720px) { .sub-form { grid-template-columns: 1fr 200px auto; } .subscribe.compact .sub-form { grid-template-columns: 1fr auto; } }
+.sub-form input[type=email], .sub-form select { min-height: 44px; }
+.spot-open { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; border-style: dashed; }
+.spot-open p { margin: 0; max-width: 70ch; }

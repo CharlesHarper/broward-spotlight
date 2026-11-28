@@ -10,6 +10,7 @@ import type { Business, Inspection } from '../lib/db';
 import { CATEGORIES, CITY_NAMES } from '../lib/shared';
 import { env, fmtDate } from '../lib/util';
 import CityItems from '../components/CityItems.astro';
+import Subscribe from '../components/Subscribe.astro';
 import { browardItems } from '../lib/citynews';
 import { plainInspectionType } from '../lib/shared';
 
@@ -105,6 +106,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
         </div>
       </section>
     )}
+    <Subscribe source="home" />
 
     {verified.length > 0 && (
       <section>

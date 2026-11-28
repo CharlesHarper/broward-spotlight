@@ -1,0 +1,30 @@
+---
+import BotFields from './BotFields.astro';
+import { CITY_NAMES } from '../lib/shared';
+interface Props { city?: string | null; compact?: boolean; source?: string }
+const { city = null, compact = false, source = '' } = Astro.props;
+const state = Astro.url.searchParams.get('subscribed');
+---
+<section class:list={['panel', 'subscribe', { compact }]} id="subscribe">
+  <div class="stack" style="gap:6px">
+    <h2>This Week in Broward</h2>
+    <p class="muted small">One email every Thursday: events this weekend, city news and the latest restaurant inspections{city ? ` for ${CITY_NAMES[city]} and the rest of Broward` : ''}. Free. Unsubscribe any time.</p>
+  </div>
+  {state === '1' ? <p class="notice">You're in. Look for it Thursday morning.</p> : (
+    <form method="post" action="/api/subscribe" class="sub-form">
+      <BotFields />
+      <input type="hidden" name="from" value={Astro.url.pathname} />
+      <input type="hidden" name="source" value={source || Astro.url.pathname} />
+      <label class="sr" for={`sub-email-${source}`}>Email</label>
+      <input id={`sub-email-${source}`} type="email" name="email" required placeholder="you@email.com" autocomplete="email" />
+      {city ? <input type="hidden" name="city" value={city} /> : (
+        <select name="city" aria-label="Your city (optional)">
+          <option value="">All of Broward</option>
+          {Object.entries(CITY_NAMES).filter(([k]) => k !== 'unincorporated-broward').map(([k, v]) => <option value={k}>{v}</option>)}
+        </select>
+      )}
+      <button class="btn btn-primary" type="submit">Subscribe</button>
+    </form>
+  )}
+  {state === '0' && <p class="small" style="color:var(--alert,#b42318)">That email didn't look right. Try again?</p>}
+</section>

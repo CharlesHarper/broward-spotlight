@@ -4,6 +4,8 @@ import CityItems from '../../../components/CityItems.astro';
 import { cityRow } from '../../../lib/db';
 import { cityItems } from '../../../lib/citynews';
 import { env } from '../../../lib/util';
+import { cityPhotoUrl } from '../../../data/cities';
+import Subscribe from '../../../components/Subscribe.astro';
 
 const e = env(Astro.locals);
 const slug = Astro.params.slug!;
@@ -37,7 +39,7 @@ const jsonld = {
 };
 Astro.response.headers.set('Cache-Control', 'public, max-age=900');
 ---
-<Base title={title} description={description} jsonld={jsonld} noindex={items.length < 3} canonical={`${site}/city/${slug}/news`}>
+<Base title={title} description={description} image={cityPhotoUrl(slug) ? `${site}${cityPhotoUrl(slug)}` : null} jsonld={jsonld} noindex={items.length < 3} canonical={`${site}/city/${slug}/news`}>
   <div class="wrap stack-lg" style="max-width:860px">
     <header class="stack">
       <p class="label"><a href="/cities">Cities</a> / <a href={`/city/${slug}`}>{city.name}</a></p>
@@ -47,6 +49,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=900');
     </header>
     {items.length ? <section class="panel"><CityItems items={items} kind={KIND} full /></section>
       : <p class="notice">Nothing posted right now. We check the official {city.name} website every day.</p>}
+    <Subscribe city={slug} compact source={`city-${slug}-${KIND}`} />
     {city.website && <p class="small muted">Source: <a href={city.website} target="_blank" rel="noopener">{city.website.replace(/^https?:\/\//, '')}</a>. Broward Spotlight is independent and not affiliated with the city.</p>}
   </div>
 </Base>

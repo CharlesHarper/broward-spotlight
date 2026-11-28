@@ -42,6 +42,14 @@ const today = () => new Date().toISOString().slice(0, 10);
 const ACTIVE_PLACEMENT = `EXISTS (SELECT 1 FROM placements p WHERE p.business_id = b.id AND p.starts_on <= ?1 AND p.ends_on >= ?1
   AND (p.city_slug IS NULL OR p.city_slug = ?2) AND (p.category IS NULL OR p.category = ?3))`;
 
+/** Featured spots sold per city + category page. */
+export const FEATURED_SPOTS = 3;
+export async function spotsTaken(db: D1Database, city: string | null, category: string | null) {
+  const r = await db.prepare(`SELECT COUNT(DISTINCT business_id) AS n FROM placements WHERE starts_on <= ?1 AND ends_on >= ?1 AND city_slug IS ?2 AND category IS ?3`)
+    .bind(today(), city, category).first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
 /** Paid Featured listings for a page scope. Always shown separately and labeled. */
 export async function featured(db: D1Database, opts: { city?: string | null; category?: string | null; limit?: number }) {
   const { results } = await db

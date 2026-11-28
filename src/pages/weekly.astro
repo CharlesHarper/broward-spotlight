@@ -1,0 +1,48 @@
+---
+import Base from '../layouts/Base.astro';
+import Subscribe from '../components/Subscribe.astro';
+import { weeklyItems } from '../lib/digest';
+import { subscriberCount } from '../lib/newsletter';
+import { env } from '../lib/util';
+
+// The web version of the weekly email, and its signup page.
+const e = env(Astro.locals);
+const site = e.SITE_URL.replace(/\/$/, '');
+const [items, subs] = await Promise.all([weeklyItems(e.DB, site), subscriberCount(e.DB)]);
+const insp = items.find((i) => i.kind === 'inspections');
+const events = items.filter((i) => i.kind === 'event');
+const news = items.filter((i) => i.kind === 'news');
+Astro.response.headers.set('Cache-Control', 'public, max-age=900');
+---
+<Base title="This Week in Broward: free weekly email" description="Free weekly email with Broward County events, city news and restaurant inspection results. Every Thursday. Unsubscribe any time." canonical={`${site}/weekly`}>
+  <div class="wrap stack-lg" style="max-width:860px">
+    <header class="stack">
+      <p class="label">Free weekly email</p>
+      <h1>This Week in Broward</h1>
+      <p class="muted" style="max-width:65ch">Every Thursday morning: what's happening this weekend across Broward's 31 cities, the city news worth knowing, and which restaurants passed or failed their state inspections. Here's what this week's looks like.</p>
+    </header>
+    <Subscribe source="weekly-page" />
+    {insp && (
+      <section class="panel stack">
+        <h2>{insp.title}</h2>
+        <p>{insp.description} <a href={insp.link}>See the report</a></p>
+      </section>
+    )}
+    {events.length > 0 && (
+      <section class="stack">
+        <h2>Coming up</h2>
+        <ul class="city-news">{events.map((i) => <li><a href={i.link} target="_blank" rel="noopener">{i.title}</a><small>{i.description}</small></li>)}</ul>
+      </section>
+    )}
+    {news.length > 0 && (
+      <section class="stack">
+        <h2>In the news</h2>
+        <ul class="city-news">{news.map((i) => <li><a href={i.link} target="_blank" rel="noopener">{i.title}</a><small>{i.description}</small></li>)}</ul>
+      </section>
+    )}
+    <section class="panel panel-sunk stack">
+      <h2>Sponsor this email</h2>
+      <p class="small">One labeled sponsor spot per week, seen by {subs > 50 ? `${subs.toLocaleString()} Broward subscribers` : 'a growing list of Broward readers'}. <a href="/advertise#newsletter">Ask about the sponsor spot</a>.</p>
+    </section>
+  </div>
+</Base>

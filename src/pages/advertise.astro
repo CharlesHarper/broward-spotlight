@@ -7,6 +7,11 @@ const e = env(Astro.locals);
 const canPay = !!(payLink(e, 'featured') || payLink(e, 'spotlight'));
 const adLink = payLink(e, 'ad');
 const sent = Astro.url.searchParams.get('sent');
+const waitlist = Astro.url.searchParams.get('waitlist') ?? '';
+const [wCity, wCat] = waitlist.split(':');
+const waitTarget = wCity && wCat ? `Waitlist: ${wCat} in ${wCity}` : '';
+import { subscriberCount } from '../lib/newsletter';
+const subs = await subscriberCount(e.DB);
 const tiers = [
   { name: 'Claimed listing', price: 'Free', per: '', items: ['Owner verified badge', 'Add phone, website, hours, photos and description', 'Reply to every review', 'Get notified about new reviews'], cta: 'Find your listing', href: '/search', spot: false },
   { name: 'Featured', price: '$79', per: '/month', items: ['Top of your city and category pages, labeled Featured', 'Shown in matching searches', 'Includes everything in a claimed listing', 'Cancel any month'], cta: 'Get Featured', href: canPay ? '/claim?for=featured' : '#inquire', spot: true },
@@ -39,6 +44,10 @@ const tiers = [
       <p><strong>Does:</strong> moves your listing into labeled Featured spots, publishes a labeled Sponsored story, or shows a labeled ad.</p>
       <p><strong>Doesn't:</strong> hide or change a state inspection or license record, remove or reorder reviews, or buy a verified badge. Those are the same for every business, paying or not.</p>
     </section>
+    <section class="panel stack" id="newsletter" style="max-width:820px">
+      <h2>Sponsor "This Week in Broward"</h2>
+      <p>One labeled sponsor spot in our free weekly email of Broward events, city news and restaurant inspections{subs > 50 ? `, sent to ${subs.toLocaleString()} subscribers` : ''}. Your logo, two lines and a link. One sponsor per week. Ask below for open weeks and the current rate.</p>
+    </section>
     <section id="inquire" style="max-width:720px">
       {sent ? <p class="notice notice-ok" role="status">Thanks. We'll reach out within one business day with available spots and next steps.</p> : (
         <form method="post" action="/api/advertise" class="panel stack">
@@ -49,9 +58,9 @@ const tiers = [
           <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" /></label>
           <label class="field"><span>Phone</span><input name="phone" type="tel" autocomplete="tel" /></label>
           <label class="field"><span>Interested in</span>
-            <select name="interest" required><option value="">Choose one</option><option>Featured</option><option>Spotlight article</option><option>Display ad</option><option>Not sure yet</option></select>
+            <select name="interest" required><option value="">Choose one</option><option>Featured</option><option>Spotlight article</option><option>Display ad</option><option>Weekly email sponsor</option><option>Featured waitlist</option><option>Not sure yet</option></select>
           </label>
-          <label class="field"><span>Which cities or categories? (optional)</span><input name="target" maxlength="200" /></label>
+          <label class="field"><span>Which cities or categories? (optional)</span><input name="target" maxlength="200" value={waitTarget} /></label>
           <button class="btn btn-primary" type="submit">Send</button>
         </form>
       )}

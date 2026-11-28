@@ -6,6 +6,7 @@ import { livePhotos, MAX_PHOTOS } from '../../lib/photos';
 import { PLANS, money, payLink } from '../../lib/plans';
 import { CITY_NAMES, categoryLabel } from '../../lib/shared';
 import { ownerEmail } from '../../lib/owner';
+import { spotsTaken, FEATURED_SPOTS } from '../../lib/db';
 const e = env(Astro.locals);
 const b = await e.DB.prepare(`SELECT * FROM businesses WHERE owner_token = ?`).bind(Astro.params.token).first<Business>();
 if (!b) return new Response('This owner link is not valid. Ask us for a new one.', { status: 404 });
@@ -24,6 +25,7 @@ const signedIn = await ownerEmail(e.DB, Astro.cookies);
 const siteUrl = e.SITE_URL.replace(/\/$/, '');
 const badgeLink = `${siteUrl}/business/${b.slug}`;
 const badgeImg = `${siteUrl}/badge/${b.slug}.svg`;
+const spotsLeft = FEATURED_SPOTS - await spotsTaken(e.DB, b.city_slug, b.category);
 const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_slug && CITY_NAMES[b.city_slug] ? CITY_NAMES[b.city_slug] : 'Broward County'}`;
 ---
 <Base title={`Manage ${b.name}`} noindex>
@@ -91,7 +93,9 @@ const featuredWhere = `${categoryLabel(b.category).toLowerCase()} in ${b.city_sl
           <h3 style="font-size:17px">{PLANS.featured.label}</h3>
           <p><span class="price">{money(PLANS.featured.cents)}</span><span class="muted">/month</span></p>
           <p class="small">Your listing at the top of {featuredWhere} pages and matching searches, labeled Featured. Cancel any time.</p>
-          {liveFeatured ? <a class="btn" href={`/order/${liveFeatured.token}`}>Featured through {fmtDate(liveFeatured.paid_through)} · manage</a>
+          {!liveFeatured && <p class="small"><strong>{spotsLeft > 0 ? `${spotsLeft} of ${FEATURED_SPOTS} spots open` : 'All spots taken right now'}</strong></p>}
+          {!liveFeatured && spotsLeft <= 0 ? <a class="btn" href={`/advertise?waitlist=${b.city_slug}:${b.category}#inquire`}>Join the waitlist</a>
+            : liveFeatured ? <a class="btn" href={`/order/${liveFeatured.token}`}>Featured through {fmtDate(liveFeatured.paid_through)} · manage</a>
             : featLink ? <a class="btn btn-spot" href={featLink} target="_blank" rel="noopener">Get Featured</a>
             : <a class="btn btn-spot" href="/advertise#inquire">Ask about Featured</a>}
         </div>
