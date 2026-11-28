@@ -239,3 +239,20 @@ export async function sendClaimInvites(env: EnrichEnv) {
   }
   return { read: results.length, kept: sent, note: `claim invitations handed to HighLevel: ${sent}` };
 }
+
+/** Three days after an owner verifies, email them the "Verified on Broward Spotlight" badge for their website (once). */
+export async function sendBadgeEmails(env: Env, site: string) {
+  if (!env.GHL_WEBHOOK_URL) return { read: 0, kept: 0, note: 'no webhook' };
+  const { results } = await env.DB.prepare(`SELECT b.id, b.name, b.slug, b.owner_email, b.owner_token FROM businesses b WHERE b.claimed = 1 AND b.owner_email IS NOT NULL AND b.owner_token IS NOT NULL
+    AND b.updated_at < datetime('now', '-3 days') AND NOT EXISTS (SELECT 1 FROM import_state s WHERE s.key = 'badge_sent:' || b.id) LIMIT 20`).all<{ id: number; name: string; slug: string; owner_email: string; owner_token: string }>();
+  let sent = 0;
+  for (const b of results) {
+    const ok = await fetch(env.GHL_WEBHOOK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+      event: 'badge_offer', source: 'browardspotlight.com', sent_at: new Date().toISOString(), email: b.owner_email, business_name: b.name,
+      business_url: `${site}/business/${b.slug}`, owner_url: `${site}/owner/${b.owner_token}`, badge_img: `${site}/badge-verified.png`, badge_page: `${site}/owner/${b.owner_token}#badge`, tags: ['spotlight-owner'] }) }).then((r) => r.ok).catch(() => false);
+    if (!ok) continue;
+    sent++;
+    await env.DB.prepare(`INSERT INTO import_state (key, value) VALUES (?, datetime('now')) ON CONFLICT(key) DO NOTHING`).bind(`badge_sent:${b.id}`).run();
+  }
+  return { read: results.length, kept: sent, note: `badge emails ${sent}` };
+}

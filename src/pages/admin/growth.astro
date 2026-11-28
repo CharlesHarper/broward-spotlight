@@ -31,7 +31,7 @@ const msg = Astro.url.searchParams.get('msg');
     </section>
     <section class="panel stack">
       <h2>Backlinks</h2>
-      <p class="small">Verified owners: {badge?.owners ?? 0}. Badge emails sent: {badge?.sent ?? 0}. New owners get the badge in their welcome email automatically.</p>
+      <p class="small">Verified owners: {badge?.owners ?? 0}. Badge emails sent: {badge?.sent ?? 0}. New owners get the badge email automatically three days after they verify.</p>
       <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="badge_send_all" /><button class="btn btn-sm">Email the badge to owners who haven't had it</button></form>
       <p class="small">Monthly report for reporters: <a href={`/inspections/${lastMonth}`}>/inspections/{lastMonth}</a> · <a href="/press">Press page</a></p>
     </section>

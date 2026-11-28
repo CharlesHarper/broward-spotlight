@@ -4,7 +4,7 @@
 
 import { csvRows } from './csv';
 import { importCountySlice } from './county';
-import { enrichFromOsm, enrichFromWebsites, sendClaimInvites } from './enrich';
+import { enrichFromOsm, enrichFromWebsites, sendClaimInvites, sendBadgeEmails } from './enrich';
 import { normalizeCity, titleCase, slugify, dispositionTone, dbprRank, CITY_NAMES } from '../../src/lib/shared';
 
 interface Env {
@@ -261,6 +261,10 @@ async function routine(env: Env) {
     const r = await hgsCheckBatch(env.DB, 10);
     if (r.read) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('site-checks', ?, datetime('now'), ?, ?, ?)`).bind(started2, r.read, r.kept, r.note).run();
   } catch (e) { console.log('site checks failed', String(e)); }
+  try {
+    const b = await sendBadgeEmails(env, env.SITE_URL.replace(/\/$/, ''));
+    if (b.kept) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('badge-emails', datetime('now'), datetime('now'), ?, ?, ?)`).bind(b.read, b.kept, b.note).run();
+  } catch (e) { console.log('badge emails failed', String(e)); }
   const county = await countySlice(env);
   if (!(county as { skipped?: boolean }).skipped) return county;
   const started = new Date().toISOString().replace('T', ' ').slice(0, 19);
