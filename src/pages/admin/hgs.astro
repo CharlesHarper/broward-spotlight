@@ -104,5 +104,8 @@ const link = (p: Record<string, string>) => `/admin/hgs?${new URLSearchParams({ 
         HighLevel is connected. <button class="btn btn-sm" type="submit">Disconnect</button>
       </form>
     )}
+    {hook && (
+      <form method="post" action="/api/admin/hgs" class="small muted"><input type="hidden" name="action" value="sample" /><button class="btn btn-sm" type="submit">Send a sample to HighLevel</button></form>
+    )}
   </div>
 </Base>

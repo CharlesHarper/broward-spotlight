@@ -3,6 +3,10 @@ import { env, str, token } from '../../../lib/util';
 import { CITY_NAMES, categoryLabel } from '../../../lib/shared';
 import { ensureHgs, hgsPost, topPitch, ISSUES } from '../../../lib/hgs';
 
+const SAMPLE = { email: 'sample.prospect@example.com', first_name: 'Sam', business_name: 'Sample Plumbing Co', city: 'Davie', category: 'Home services', phone: '9545550100',
+  website: 'sampleplumbing.example', preview_url: 'https://browardspotlight.com/p/sample', problem: 'there\'s no tap-to-call button, so people on their phone have to copy your number by hand',
+  problems: 'No tap-to-call, No quote or booking button', has_website: 'yes', views: 1, tags: ['hgs-preview'] };
+
 export const POST: APIRoute = async ({ request, locals, redirect }) => {
   const e = env(locals);
   const db = e.DB;
@@ -15,8 +19,11 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     if (url && !/^https:\/\/[a-z0-9.-]*(leadconnectorhq|gohighlevel|msgsndr)\.com\//i.test(url)) return back('That doesn\'t look like a HighLevel webhook URL.');
     if (url) await db.prepare(`INSERT INTO import_state (key, value) VALUES ('hgs_webhook_url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(url).run();
     else await db.prepare(`DELETE FROM import_state WHERE key = 'hgs_webhook_url'`).run();
-    return back(url ? 'HighLevel connected.' : 'HighLevel disconnected.');
+    // A sample with every field, so HighLevel's trigger can map them. The workflow ignores event "hgs_sample".
+    if (url) await hgsPost(db, 'hgs_sample', SAMPLE);
+    return back(url ? 'HighLevel connected. A sample was sent so the workflow can map the fields.' : 'HighLevel disconnected.');
   }
+  if (action === 'sample') { const ok = await hgsPost(db, 'hgs_sample', SAMPLE); return back(ok ? 'Sample sent to HighLevel.' : 'Couldn\'t reach HighLevel. Check the webhook URL.'); }
   const ids = f.getAll('id').map((x) => Number(x)).filter(Boolean).slice(0, 50);
   if (!ids.length) return back('Pick at least one business.');
   const go = str(f.get('go'));
