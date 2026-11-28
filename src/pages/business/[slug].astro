@@ -73,7 +73,11 @@ if (b.dbpr_license) faq.push({ q: `Is ${b.name} licensed by the state?`, a: `Yes
 if (d.reviewStats.n > 0) faq.push({ q: `What do customers say about ${b.name}?`, a: `${d.reviewStats.n} ${d.reviewStats.n === 1 ? 'customer has' : 'customers have'} reviewed ${b.name} on Broward Spotlight, with an average of ${d.reviewStats.avg} out of 5.` });
 // Search-result description: the owner's own words when there are any, otherwise the record summary. Cut at a word, about 160 characters.
 const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
-const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : summary);
+// Search snippet: lead with what searchers can't get elsewhere, the latest state inspection in plain words.
+const snippet = latest
+  ? `${b.name}, ${cityName ?? 'Broward'}: last state inspection ${fmtDate(latest.date)}, ${(plainDisposition(latest.disposition)?.short ?? latest.disposition).toLowerCase()}${latest.high_priority ? ` (${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'})` : ''}. ${d.reviewStats.n ? `${d.reviewStats.n} customer ${d.reviewStats.n === 1 ? 'review' : 'reviews'}, ` : ''}full inspection history, hours and map.`
+  : summary;
+const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : snippet);
 const thin = isThin(b, d.reviewStats.n, d.mentions.length);
 const jsonld = {
   '@context': 'https://schema.org',
