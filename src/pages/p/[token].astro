@@ -1,0 +1,164 @@
+---
+import { env } from '../../lib/util';
+import { CITY_NAMES, categoryLabel } from '../../lib/shared';
+import { ensureHgs, hgsPost, ISSUES } from '../../lib/hgs';
+import { subcatOf } from '../../lib/subcats';
+
+// A concept website for one prospect, made by Harper Growth Systems. Clearly labeled as a preview; the form doesn't send anything.
+const e = env(Astro.locals);
+const db = e.DB;
+await ensureHgs(db);
+const t = String(Astro.params.token ?? '');
+const r = /^[a-f0-9]{20}$/.test(t) ? await db.prepare(`SELECT h.*, b.name, b.city_slug, b.category, b.subtype, b.phone, b.website, b.hours, b.description, b.address, b.zip
+  FROM hgs_prospects h JOIN businesses b ON b.id = h.business_id WHERE h.token = ?`).bind(t).first<any>() : null;
+if (!r || (r.picked_at && Date.parse(r.picked_at.replace(' ', 'T') + 'Z') < Date.now() - 60 * 864e5)) return new Response('This preview link has expired.', { status: 404 });
+
+// Count real visits. Link scanners and our own admin checks don't count.
+const ua = Astro.request.headers.get('user-agent') ?? '';
+const bot = /bot|crawl|spider|preview|scanner|proofpoint|mimecast|barracuda|safelinks|headless|curl|python|go-http/i.test(ua);
+if (!bot && Astro.url.searchParams.get('me') !== '1') {
+  const due = !r.viewed_at || Date.parse(r.viewed_at.replace(' ', 'T') + 'Z') < Date.now() - 6 * 3600e3;
+  await db.prepare(`UPDATE hgs_prospects SET views = views + 1, viewed_at = datetime('now') WHERE business_id = ?`).bind(r.business_id).run();
+  if (due) await hgsPost(db, 'hgs_preview_viewed', { email: r.email ?? '', business_name: r.name, preview_url: Astro.url.toString().split('?')[0], views: r.views + 1 });
+}
+
+const city = r.city_slug ? CITY_NAMES[r.city_slug] : 'Broward County';
+const issues: string[] = JSON.parse(r.issues ?? '[]');
+const phone = (r.phone ?? '').replace(/\D/g, '').replace(/^1/, '');
+const phoneFmt = phone.length === 10 ? `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}` : r.phone;
+const type = r.subtype ? r.subtype.replace(/\b\w/g, (c: string) => c.toUpperCase()) : categoryLabel(r.category);
+const THEMES: Record<string, { bg: string; ink: string; accent: string; soft: string; hero: string; cta: string; sub: string; sections: string[]; fields: [string, string][] }> = {
+  auto: { bg: '#0d0f12', ink: '#f3f4f6', accent: '#f5b301', soft: '#181b21', hero: `${type} in ${city}, FL`, cta: 'Get a quote', sub: 'Tell us your vehicle and what you need. Get a quote without playing phone tag.',
+    sections: ['Services', 'Pricing', 'Our work', 'Reviews'], fields: [['Year, make and model', 'text'], ['Service you want', 'text']] },
+  'home-services': { bg: '#f6f9fc', ink: '#0f1f2e', accent: '#0b6bcb', soft: '#ffffff', hero: `${type} in ${city}, FL`, cta: 'Request service', sub: 'Describe the job and send a photo. Get a quote without waiting on hold.',
+    sections: ['Repairs', 'Installations', 'Maintenance', 'Emergency calls'], fields: [['ZIP code', 'text'], ['What do you need done?', 'textarea']] },
+  beauty: { bg: '#fbf7f5', ink: '#2b1d1a', accent: '#b05a4a', soft: '#ffffff', hero: `${r.name}`, cta: 'Book now', sub: `${type} in ${city}. Book your next appointment in a few taps.`,
+    sections: ['Cuts and styling', 'Color', 'Treatments', 'Special occasions'], fields: [['Service', 'text'], ['Preferred day', 'text']] },
+  restaurants: { bg: '#fffaf3', ink: '#2a1c12', accent: '#c2410c', soft: '#ffffff', hero: `${r.name}`, cta: 'Order or reserve', sub: `${type} in ${city}. See the menu, call ahead or plan your catering.`,
+    sections: ['Menu', 'Catering', 'Private events', 'Hours and directions'], fields: [['Party size or catering headcount', 'text'], ['Date', 'text']] },
+  health: { bg: '#f5fafa', ink: '#102a2a', accent: '#0f766e', soft: '#ffffff', hero: `${type} in ${city}, FL`, cta: 'Request an appointment', sub: 'New patients can request a time online in under a minute.',
+    sections: ['New patients', 'Services', 'Insurance', 'Location and hours'], fields: [['Reason for visit', 'text'], ['Best time to call', 'text']] },
+  default: { bg: '#f7f7f5', ink: '#1c1c1a', accent: '#1f6f5c', soft: '#ffffff', hero: `${type} in ${city}, FL`, cta: 'Get in touch', sub: 'Questions or a quote request? Send it here and get a call back.',
+    sections: ['What we do', 'How it works', 'Service area', 'Contact'], fields: [['What can we help with?', 'textarea']] },
+};
+// Sample sections that fit what kind of business this is.
+const SECTIONS: Record<string, string[]> = {
+  'tint-wraps': ['Window tint', 'Paint protection film', 'Ceramic coating', 'Wraps'], detailing: ['Interior detail', 'Exterior detail', 'Ceramic coating', 'Maintenance plans'],
+  repair: ['Diagnostics', 'Brakes and suspension', 'A/C service', 'Maintenance'], 'body-paint': ['Collision repair', 'Paint', 'Dents', 'Insurance claims'],
+  tires: ['New tires', 'Alignment', 'Wheels', 'Repairs'], towing: ['Towing', 'Roadside help', 'Lockouts', 'Jump starts'], glass: ['Windshield replacement', 'Chip repair', 'Mobile service', 'Insurance claims'],
+  plumbers: ['Leaks and repairs', 'Water heaters', 'Drains', 'Repipes'], electricians: ['Repairs', 'Panels', 'Lighting', 'Generators'], hvac: ['A/C repair', 'New systems', 'Maintenance', 'Duct cleaning'],
+  roofing: ['Roof repair', 'Re-roofing', 'Inspections', 'Storm damage'], 'lawn-landscaping': ['Lawn care', 'Landscaping', 'Tree trimming', 'Irrigation'], pools: ['Weekly service', 'Repairs', 'Equipment', 'Resurfacing'],
+  'pest-control': ['Pest control', 'Termites', 'Rodents', 'Lawn pests'], cleaning: ['Home cleaning', 'Deep cleaning', 'Move-out cleaning', 'Offices'], 'pressure-cleaning': ['Driveways', 'Roofs', 'Pavers', 'Houses'],
+  painting: ['Interior', 'Exterior', 'Cabinets', 'Commercial'], movers: ['Local moves', 'Long distance', 'Packing', 'Storage'], barbers: ['Haircuts', 'Fades', 'Beard trims', 'Kids cuts'],
+  nails: ['Manicures', 'Pedicures', 'Gel and acrylic', 'Nail art'], 'hair-salons': ['Cuts and styling', 'Color', 'Treatments', 'Special occasions'], 'lashes-brows': ['Lash extensions', 'Brows', 'Waxing', 'Lifts and tints'],
+};
+const sc = subcatOf(r.category, r.subtype, r.name);
+const th = THEMES[r.category] ?? THEMES[r.category === 'food-trucks' ? 'restaurants' : r.category === 'fitness' ? 'beauty' : 'default'] ?? THEMES.default;
+const fixes = issues.filter((i) => ISSUES[i]).map((i) => ({
+  none: 'A real website people can find and trust, with your phone and a quote form up front.',
+  dead: 'A working site again, so clicks from Google land somewhere.',
+  no_mobile: 'Built for phones first: big text, big buttons, nothing to pinch and zoom.',
+  no_call: 'A tap-to-call button that stays on screen on phones.',
+  no_quote: `A clear "${th.cta}" button at the top of every screen.`,
+  no_form: 'A short form that sends requests straight to your phone and email, day or night.',
+  old_copyright: 'Fresh, current design that shows the business is active.',
+  no_https: 'A secure https connection, so browsers don\'t show a warning.',
+} as Record<string, string>)[i]);
+const host = r.website ? r.website.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : null;
+Astro.response.headers.set('Cache-Control', 'no-store');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{`${r.name}: website concept preview`}</title>
+  <style define:vars={{ bg: th.bg, ink: th.ink, accent: th.accent, soft: th.soft }}>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+    a { color: inherit; }
+    .ribbon { background: #111; color: #fff; font-size: 13px; padding: 8px 16px; text-align: center; }
+    .ribbon a { color: #9fe3cf; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+    header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; }
+    .logo { font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 999px; font-weight: 700; text-decoration: none; border: 0; cursor: pointer; font-size: 16px; }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-ghost { border: 2px solid currentColor; background: transparent; }
+    .hero { padding: 48px 0 40px; display: grid; gap: 28px; }
+    @media (min-width: 860px) { .hero { grid-template-columns: 1.2fr 1fr; align-items: start; padding: 72px 0 56px; } }
+    h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.05; margin: 0 0 14px; letter-spacing: -.02em; }
+    .sub { font-size: 18px; opacity: .85; max-width: 44ch; margin: 0 0 24px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .card { background: var(--soft); border-radius: 18px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.12); color: var(--ink); }
+    .card h2 { margin: 0 0 12px; font-size: 20px; }
+    label { display: grid; gap: 4px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    input, textarea { font: inherit; padding: 12px; border-radius: 10px; border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; }
+    textarea { min-height: 90px; }
+    .demo-note { font-size: 13px; opacity: .75; margin: 8px 0 0; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); padding: 8px 0 48px; }
+    .tile { background: var(--soft); border-radius: 16px; padding: 20px; min-height: 120px; color: var(--ink); }
+    .tile b { display: block; font-size: 17px; margin-bottom: 6px; }
+    .tile small { opacity: .65; }
+    .band { padding: 40px 0; border-top: 1px solid rgba(127,127,127,.2); }
+    .fix { background: #fff; color: #1b1b1b; border-radius: 18px; padding: 24px; margin: 32px 0 48px; border: 2px dashed #1f6f5c; }
+    .fix h2 { margin-top: 0; }
+    .fix li { margin: 6px 0; }
+    .callbar { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 10px 16px; background: var(--bg); border-top: 1px solid rgba(127,127,127,.25); }
+    .callbar .btn { flex: 1; }
+    @media (min-width: 860px) { .callbar { display: none; } }
+    footer { padding: 24px 0 40px; font-size: 13px; opacity: .7; }
+  </style>
+</head>
+<body>
+  <div class="ribbon">Concept preview made for {r.name} by <a href="https://tryharpergrowth.com" target="_blank" rel="noopener">Harper Growth Systems</a>. Not a live site; the form below doesn't send anything.</div>
+  <div class="wrap">
+    <header class="top">
+      <span class="logo">{r.name}</span>
+      {phone && <a class="btn btn-accent" href={`tel:+1${phone}`}>Call {phoneFmt}</a>}
+    </header>
+    <section class="hero">
+      <div>
+        <h1>{th.hero}</h1>
+        <p class="sub">{th.sub}</p>
+        <div class="actions">
+          <a class="btn btn-accent" href="#quote">{th.cta}</a>
+          {phone && <a class="btn btn-ghost" href={`tel:+1${phone}`}>Call {phoneFmt}</a>}
+        </div>
+      </div>
+      <form class="card" id="quote" onsubmit="event.preventDefault(); this.querySelector('.demo-note').textContent = 'On your live site, this request would go straight to your phone and inbox.';">
+        <h2>{th.cta}</h2>
+        <label>Name <input autocomplete="off" /></label>
+        <label>Mobile number <input type="tel" autocomplete="off" /></label>
+        {th.fields.map(([l, k]) => <label>{l}{k === 'textarea' ? <textarea></textarea> : <input autocomplete="off" />}</label>)}
+        <button class="btn btn-accent" type="submit" style="width:100%">Send request</button>
+        <p class="demo-note">Preview only: nothing is sent.</p>
+      </form>
+    </section>
+    <section>
+      <div class="grid">
+        {(sc && SECTIONS[sc.slug] ? SECTIONS[sc.slug] : r.category === 'auto' ? ['Services', 'Pricing', 'Our work', 'Reviews'] : th.sections).map((s) => <div class="tile"><b>{s}</b><small>Sample section. We'd fill this in with your real services, prices and photos.</small></div>)}
+      </div>
+    </section>
+    <section class="band">
+      <h2 style="margin-top:0">Visit or call</h2>
+      <p>{r.address && r.address.length < 80 ? `${r.address}, ` : ''}{city}, FL{r.zip ? ` ${r.zip}` : ''}{phone ? ` · ${phoneFmt}` : ''}</p>
+      {r.hours && <p style="white-space:pre-line">{r.hours}</p>}
+      <p style="opacity:.7">Your Google reviews and a map would show here.</p>
+    </section>
+    <section class="fix">
+      <h2>What this concept fixes{host ? ` compared with ${host}` : ''}</h2>
+      <ul>{(fixes.length ? fixes : ['A faster, cleaner site built around getting the phone to ring.']).map((x) => <li>{x}</li>)}</ul>
+      <p><strong>Want it live?</strong> Harper Growth Systems builds it with your real services, photos and reviews, connects your domain, hosts it and keeps it updated for $97 a month. Nothing upfront.</p>
+      <div class="actions">
+        <a class="btn btn-accent" style="background:#1f6f5c" href={`mailto:charles@tryharpergrowth.com?subject=${encodeURIComponent(`Website for ${r.name}`)}`}>Email Charles</a>
+      </div>
+      <p style="font-size:13px;opacity:.7;margin-bottom:0">Not interested? No problem: just ignore this, and this preview link stops working in 60 days.</p>
+    </section>
+    <footer>Concept by Harper Growth Systems for {r.name}. Business details come from public records and may be out of date.</footer>
+  </div>
+  {phone && <div class="callbar"><a class="btn btn-accent" href={`tel:+1${phone}`}>Call</a><a class="btn btn-ghost" href="#quote">{th.cta}</a></div>}
+</body>
+</html>

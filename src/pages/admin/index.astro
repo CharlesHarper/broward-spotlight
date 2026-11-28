@@ -43,6 +43,8 @@ const cities = tab === 'cities' ? (await db.prepare(`SELECT c.*, (SELECT COUNT(*
         <a class="chip" href="/admin?tab=find" aria-current={tab === 'find' ? 'page' : undefined}>Find &amp; edit listings</a>
         <a class="chip" href="/admin?tab=money" aria-current={tab === 'money' ? 'page' : undefined}>Featured &amp; ads</a>
         <a class="chip" href="/admin?tab=cities" aria-current={tab === 'cities' ? 'page' : undefined}>Cities &amp; feeds</a>
+        <a class="chip" href="/admin/growth">Growth</a>
+        <a class="chip" href="/admin/hgs">HGS prospects</a>
         <a class="chip" href="/admin/business">Add a listing</a>
         <a class="chip" href="/admin/export.csv">Export unclaimed (CSV for GHL)</a>
       </nav>

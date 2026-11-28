@@ -1,0 +1,110 @@
+---
+import Base from '../../layouts/Base.astro';
+import Status from '../../components/Status.astro';
+import Subscribe from '../../components/Subscribe.astro';
+import { env, fmtDate } from '../../lib/util';
+import { CITY_NAMES, plainDisposition } from '../../lib/shared';
+
+// Monthly Broward restaurant inspection report: one page per month, written for readers and for reporters to cite.
+const e = env(Astro.locals);
+const db = e.DB;
+const site = e.SITE_URL.replace(/\/$/, '');
+const m = String(Astro.params.month ?? '');
+if (!/^20\d\d-(0[1-9]|1[0-2])$/.test(m)) return Astro.rewrite('/404');
+const [y, mo] = m.split('-').map(Number);
+const from = `${m}-01`;
+const to = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10);
+const label = new Date(Date.UTC(y, mo - 1, 15)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const prev = new Date(Date.UTC(y, mo - 2, 1)).toISOString().slice(0, 7);
+const next = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 7);
+const thisMonth = new Date().toISOString().slice(0, 7);
+const [tot, cities, closures, worst, months] = await db.batch([
+  db.prepare(`SELECT COUNT(*) AS n, SUM(tone = 'ok') AS ok, SUM(tone = 'warn') AS warn, SUM(tone = 'alert') AS alert, SUM(COALESCE(high_priority, 0)) AS hp, COUNT(DISTINCT business_id) AS places
+    FROM inspections WHERE date >= ?1 AND date < ?2`).bind(from, to),
+  db.prepare(`SELECT b.city_slug AS city, COUNT(*) AS n, SUM(i.tone = 'ok') AS ok, SUM(i.tone = 'warn') AS warn, SUM(i.tone = 'alert') AS alert
+    FROM inspections i JOIN businesses b ON b.id = i.business_id WHERE i.date >= ?1 AND i.date < ?2 AND b.city_slug IS NOT NULL GROUP BY b.city_slug ORDER BY n DESC`).bind(from, to),
+  db.prepare(`SELECT i.date, i.disposition, i.tone, i.high_priority, b.name, b.slug, b.city_slug FROM inspections i JOIN businesses b ON b.id = i.business_id
+    WHERE i.date >= ?1 AND i.date < ?2 AND i.tone = 'alert' ORDER BY i.date DESC LIMIT 100`).bind(from, to),
+  db.prepare(`SELECT i.date, i.disposition, i.tone, i.high_priority, i.total_violations, b.name, b.slug, b.city_slug FROM inspections i JOIN businesses b ON b.id = i.business_id
+    WHERE i.date >= ?1 AND i.date < ?2 AND i.high_priority IS NOT NULL ORDER BY i.high_priority DESC, i.total_violations DESC LIMIT 10`).bind(from, to),
+  db.prepare(`SELECT substr(date, 1, 7) AS m, COUNT(*) AS n FROM inspections WHERE date >= date('now', '-15 months') GROUP BY m HAVING n >= 50 ORDER BY m DESC`),
+]);
+const t = (tot.results[0] ?? {}) as { n: number; ok: number; warn: number; alert: number; hp: number; places: number };
+if (!t.n) return Astro.rewrite('/404');
+const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+const cityRows = (cities.results as { city: string; n: number; ok: number; warn: number; alert: number }[]).filter((c) => CITY_NAMES[c.city]);
+const closed = closures.results as { date: string; disposition: string; tone: string; high_priority: number | null; name: string; slug: string; city_slug: string | null }[];
+const most = worst.results as typeof closed & { total_violations: number | null }[];
+const monthList = (months.results as { m: string }[]).map((r) => r.m);
+const partial = m === thisMonth;
+const title = `Broward restaurant inspections, ${label}`;
+const description = `${t.n.toLocaleString()} Florida state inspections of Broward County food businesses in ${label}: ${pct(t.ok, t.n)}% passed, ${t.warn.toLocaleString()} warnings or follow-ups, ${t.alert} ordered closed. City-by-city numbers and every closure.`;
+const jsonld = { '@context': 'https://schema.org', '@type': 'Dataset', name: title, description, url: `${site}/inspections/${m}`, temporalCoverage: `${from}/${to}`,
+  spatialCoverage: { '@type': 'Place', name: 'Broward County, Florida' }, creator: { '@type': 'Organization', name: 'Broward Spotlight', url: site },
+  isBasedOn: 'https://www2.myfloridalicense.com/hotels-restaurants/public-records/', license: 'https://creativecommons.org/licenses/by/4.0/' };
+Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+<Base title={title} description={description} jsonld={jsonld} canonical={`${site}/inspections/${m}`}>
+  <div class="wrap stack-lg" style="max-width:960px">
+    <header class="stack">
+      <p class="label"><a href="/inspections">Inspection report</a> / Monthly</p>
+      <h1>{title}</h1>
+      <p style="max-width:70ch">In {label}{partial ? ' so far' : ''}, Florida state inspectors made {t.n.toLocaleString()} inspections at {t.places.toLocaleString()} Broward County restaurants and other food businesses. {pct(t.ok, t.n)}% passed or had every problem fixed on a follow-up visit. {t.warn.toLocaleString()} ended with a warning or an unresolved follow-up, and {t.alert} {t.alert === 1 ? 'was' : 'were'} ordered closed until problems were fixed. Inspectors recorded {Number(t.hp ?? 0).toLocaleString()} high-priority violations, the kind that could directly make someone sick.</p>
+      {partial && <p class="small muted">This month isn't over yet; numbers update as the state posts new records.</p>}
+    </header>
+    <div class="stats">
+      <div class="stat"><b>{t.n.toLocaleString()}</b><span>Inspections</span></div>
+      <div class="stat"><b>{pct(t.ok, t.n)}%</b><span>Passed or fixed on recheck</span></div>
+      <div class="stat"><b>{t.warn.toLocaleString()}</b><span>Warnings and follow-ups</span></div>
+      <div class="stat"><b>{t.alert}</b><span>Ordered closed</span></div>
+    </div>
+
+    {closed.length > 0 && (
+      <section class="stack">
+        <h2>Businesses ordered closed or rechecked after a closure</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Date</th><th>Business</th><th>City</th><th>Result</th></tr></thead>
+          <tbody>{closed.map((i) => (
+            <tr><td class="record">{fmtDate(i.date)}</td><td><a href={`/business/${i.slug}`}>{i.name}</a></td><td>{i.city_slug ? CITY_NAMES[i.city_slug] ?? '' : ''}</td><td><Status tone={i.tone as any} text={i.disposition} plain /></td></tr>
+          ))}</tbody>
+        </table></div>
+        <p class="small muted">An emergency closure lasts until the business passes a follow-up inspection. Each listing shows the latest record, including any reopening.</p>
+      </section>
+    )}
+
+    {most.length > 0 && (
+      <section class="stack">
+        <h2>Most high-priority violations in one visit</h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Business</th><th>City</th><th class="num">High priority</th><th class="num">All violations</th><th>Result</th></tr></thead>
+          <tbody>{most.map((i: any) => (
+            <tr><td><a href={`/business/${i.slug}`}>{i.name}</a></td><td>{i.city_slug ? CITY_NAMES[i.city_slug] ?? '' : ''}</td><td class="num">{i.high_priority}</td><td class="num">{i.total_violations ?? ''}</td><td>{plainDisposition(i.disposition)?.short ?? i.disposition}</td></tr>
+          ))}</tbody>
+        </table></div>
+      </section>
+    )}
+
+    <section class="stack">
+      <h2>By city</h2>
+      <div class="table-scroll"><table>
+        <thead><tr><th>City</th><th class="num">Inspections</th><th class="num">Passed</th><th class="num">Warnings</th><th class="num">Closed</th></tr></thead>
+        <tbody>{cityRows.map((c) => (
+          <tr><td><a href={`/city/${c.city}`}>{CITY_NAMES[c.city]}</a></td><td class="num">{c.n}</td><td class="num">{pct(c.ok, c.n)}%</td><td class="num">{c.warn}</td><td class="num">{c.alert}</td></tr>
+        ))}</tbody>
+      </table></div>
+    </section>
+
+    <section class="panel panel-sunk stack" id="press">
+      <h2>For reporters and researchers</h2>
+      <p class="small">These numbers come straight from Florida DBPR public inspection records for Broward County. You're welcome to use them; please credit "Broward Spotlight analysis of Florida DBPR records" and link to this page. Questions or a custom cut of the data? <a href="/press">Contact us</a>.</p>
+      <p class="small muted">Records can lag behind real-world fixes. A single inspection is a snapshot of one visit.</p>
+    </section>
+
+    <nav class="chips" aria-label="Other months">
+      {monthList.includes(prev) && <a class="chip" href={`/inspections/${prev}`}>← {prev}</a>}
+      {monthList.map((x) => <a class="chip" href={`/inspections/${x}`} aria-current={x === m ? 'page' : undefined}>{x}</a>)}
+      {next <= thisMonth && monthList.includes(next) && <a class="chip" href={`/inspections/${next}`}>{next} →</a>}
+    </nav>
+    <Subscribe source={`report-${m}`} />
+  </div>
+</Base>

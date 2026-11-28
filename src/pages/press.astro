@@ -1,0 +1,31 @@
+---
+import Base from '../layouts/Base.astro';
+import BotFields from '../components/BotFields.astro';
+import { env } from '../lib/util';
+const e = env(Astro.locals);
+const site = e.SITE_URL.replace(/\/$/, '');
+const sent = Astro.url.searchParams.get('sent');
+const last = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+---
+<Base title="Press and data requests" description="Broward Spotlight publishes monthly analyses of Florida restaurant inspection records for Broward County. Reporters may cite and link the data." canonical={`${site}/press`}>
+  <div class="wrap stack-lg" style="max-width:760px">
+    <header class="stack">
+      <p class="label">For reporters</p>
+      <h1>Press and data requests</h1>
+      <p>Each month we publish a <a href={`/inspections/${last}`}>Broward restaurant inspection report</a> built from Florida DBPR public records: how many inspections, how many passed, every emergency closure, and city-by-city numbers. You're welcome to cite it with a link back.</p>
+      <p>We can also pull custom numbers, such as one city, one type of restaurant, or a year-over-year comparison.</p>
+    </header>
+    {sent ? <p class="notice notice-ok" role="status">Thanks. We'll get back to you within one business day.</p> : (
+      <form method="post" action="/api/advertise" class="panel stack">
+        <BotFields />
+        <input type="hidden" name="interest" value="Press / data request" />
+        <label class="field"><span>Your name</span><input name="name" required maxlength="80" autocomplete="name" /></label>
+        <label class="field"><span>Outlet</span><input name="business_name" required maxlength="120" /></label>
+        <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email" /></label>
+        <label class="field"><span>Phone (optional)</span><input name="phone" type="tel" autocomplete="tel" /></label>
+        <label class="field"><span>What do you need?</span><input name="target" maxlength="200" /></label>
+        <button class="btn btn-primary" type="submit">Send</button>
+      </form>
+    )}
+  </div>
+</Base>

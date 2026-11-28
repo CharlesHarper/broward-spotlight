@@ -1,0 +1,108 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env } from '../../lib/util';
+import { CATEGORIES, CITY_NAMES, categoryLabel } from '../../lib/shared';
+import { ensureHgs, hgsWebhook, ISSUES } from '../../lib/hgs';
+
+// Harper Growth Systems prospects found from Broward Spotlight listings.
+const e = env(Astro.locals);
+const db = e.DB;
+await ensureHgs(db);
+const u = Astro.url.searchParams;
+const view = u.get('view') ?? 'new';
+const cat = u.get('category') ?? '';
+const city = u.get('city') ?? '';
+const kind = u.get('kind') ?? '';
+const withEmail = u.get('email') !== '0';
+const msg = u.get('msg');
+const where: string[] = [`b.status = 'active'`];
+const binds: unknown[] = [];
+if (view === 'new') where.push(`h.skip = 0 AND h.sent_at IS NULL AND h.picked_at IS NULL AND h.site_status IN ('weak', 'dead', 'none') AND h.score >= 25`);
+if (view === 'ready') where.push(`h.picked_at IS NOT NULL AND h.sent_at IS NULL AND h.skip = 0`);
+if (view === 'sent') where.push(`h.sent_at IS NOT NULL`);
+if (view === 'skipped') where.push(`h.skip = 1`);
+if (cat) { where.push(`b.category = ?`); binds.push(cat); }
+if (city) { where.push(`b.city_slug = ?`); binds.push(city); }
+if (kind) { where.push(`h.site_status = ?`); binds.push(kind); }
+if (view === 'new' && withEmail) where.push(`COALESCE(h.email, b.contact_email) IS NOT NULL`);
+const { results: rows } = await db.prepare(`SELECT h.*, b.name, b.slug, b.city_slug, b.category, b.subtype, b.phone, b.website, b.contact_email
+  FROM hgs_prospects h JOIN businesses b ON b.id = h.business_id WHERE ${where.join(' AND ')}
+  ORDER BY ${view === 'sent' ? 'h.sent_at DESC' : 'h.score DESC, b.claimed DESC, b.name'} LIMIT 100`).bind(...binds).all<any>();
+const stats = await db.prepare(`SELECT COUNT(*) AS checked, SUM(site_status = 'weak') AS weak, SUM(site_status = 'dead') AS dead, SUM(site_status = 'none') AS none,
+  SUM(sent_at IS NOT NULL) AS sent, SUM(views > 0) AS viewed, SUM(email IS NOT NULL) AS emails FROM hgs_prospects`).first<any>();
+const hook = await hgsWebhook(db);
+const site = e.SITE_URL.replace(/\/$/, '');
+const pickable = view === 'new' || view === 'ready';
+const link = (p: Record<string, string>) => `/admin/hgs?${new URLSearchParams({ view, category: cat, city, kind, ...p }).toString()}`;
+---
+<Base title="HGS prospects" noindex>
+  <div class="wrap stack-lg">
+    <header class="stack">
+      <p class="label"><a href="/admin">Admin</a> / Harper Growth Systems</p>
+      <h1>Website prospects</h1>
+      <p class="muted small" style="max-width:75ch">Every night, listing websites are checked for problems a better site would fix. Pick the ones you want; each gets a personal concept preview, and HighLevel emails it from your HGS account, alerts you when they open it, and stops when they reply.</p>
+      <div class="stats">
+        <div class="stat"><b>{(stats?.checked ?? 0).toLocaleString()}</b><span>Listings checked</span></div>
+        <div class="stat"><b>{((stats?.weak ?? 0) + (stats?.dead ?? 0)).toLocaleString()}</b><span>Sites with problems</span></div>
+        <div class="stat"><b>{(stats?.none ?? 0).toLocaleString()}</b><span>No website</span></div>
+        <div class="stat"><b>{stats?.sent ?? 0}</b><span>Previews sent · {stats?.viewed ?? 0} opened</span></div>
+      </div>
+      {msg && <p class="notice notice-ok" role="status">{msg}</p>}
+      {!hook && (
+        <form method="post" action="/api/admin/hgs" class="panel stack">
+          <input type="hidden" name="action" value="hook" />
+          <p class="small"><strong>Connect HighLevel:</strong> paste the Inbound Webhook URL from the "HGS - Preview outreach" workflow in your Harper Growth Systems account. Until then, picks build previews you can send yourself.</p>
+          <label class="field"><span>Webhook URL</span><input name="url" type="url" required placeholder="https://services.leadconnectorhq.com/hooks/…" /></label>
+          <button class="btn btn-sm">Save</button>
+        </form>
+      )}
+      <nav class="chips">
+        {[['new', 'To pick'], ['ready', 'Previews built'], ['sent', 'Sent'], ['skipped', 'Skipped']].map(([v, l]) => <a class="chip" href={`/admin/hgs?view=${v}`} aria-current={view === v ? 'page' : undefined}>{l}</a>)}
+      </nav>
+      <form method="get" class="in-cat">
+        <input type="hidden" name="view" value={view} />
+        <select name="category"><option value="">All categories</option>{CATEGORIES.map((c) => <option value={c.slug} selected={c.slug === cat}>{c.label}</option>)}</select>
+        <select name="city"><option value="">All cities</option>{Object.entries(CITY_NAMES).map(([k, v]) => <option value={k} selected={k === city}>{v}</option>)}</select>
+        <select name="kind"><option value="">Any problem</option><option value="weak" selected={kind === 'weak'}>Weak website</option><option value="dead" selected={kind === 'dead'}>Site down</option><option value="none" selected={kind === 'none'}>No website</option></select>
+        <select name="email"><option value="1">Has an email</option><option value="0" selected={!withEmail}>With or without email</option></select>
+        <button class="btn btn-sm">Filter</button>
+      </form>
+    </header>
+
+    {rows.length === 0 ? <p class="notice">Nothing here yet. The first checks run tonight; about 700 sites a day.</p> : (
+      <form method="post" action="/api/admin/hgs" class="stack">
+        <input type="hidden" name="action" value="send" />
+        <div class="table-scroll"><table>
+          <thead><tr><th>Pick</th><th>Business</th><th>What's wrong</th><th>Email</th><th>First name</th>{view !== 'new' && <th>Preview</th>}</tr></thead>
+          <tbody>{rows.map((r) => {
+            const issues: string[] = JSON.parse(r.issues ?? '[]');
+            const email = r.email ?? r.contact_email;
+            return (
+              <tr>
+                <td>{pickable ? <input type="checkbox" name="id" value={r.business_id} aria-label={`Pick ${r.name}`} /> : r.sent_at?.slice(0, 10)}</td>
+                <td><a href={`/business/${r.slug}`} target="_blank">{r.name}</a><br /><small class="muted">{categoryLabel(r.category)} · {r.city_slug ? CITY_NAMES[r.city_slug] : ''}{r.website ? <> · <a href={r.final_url ?? r.website} target="_blank" rel="noopener noreferrer">site</a></> : ''}{r.builder ? ` · ${r.builder}` : ''}</small></td>
+                <td><small>{issues.map((i) => ISSUES[i]?.label ?? i).join(', ')}</small><br /><small class="muted">score {r.score}</small></td>
+                <td><small>{email ?? '—'}</small></td>
+                <td>{pickable ? <input name={`first_${r.business_id}`} maxlength="40" placeholder="optional" value={r.first_name ?? ''} style="width:110px" /> : (r.first_name ?? '')}</td>
+                {view !== 'new' && <td><small>{r.token ? <a href={`${site}/p/${r.token}`} target="_blank">open</a> : ''}{r.views ? ` · ${r.views} views` : ''}</small></td>}
+              </tr>
+            );
+          })}</tbody>
+        </table></div>
+        {pickable && (
+          <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" name="go" value="send">Build previews and send</button>
+            <button class="btn" name="go" value="preview">Build previews only</button>
+            <button class="btn" name="go" value="skip">Skip these</button>
+          </div>
+        )}
+      </form>
+    )}
+    {hook && (
+      <form method="post" action="/api/admin/hgs" class="small muted">
+        <input type="hidden" name="action" value="hook" /><input type="hidden" name="url" value="" />
+        HighLevel is connected. <button class="btn btn-sm" type="submit">Disconnect</button>
+      </form>
+    )}
+  </div>
+</Base>

@@ -1,0 +1,43 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env } from '../../lib/util';
+import { subscriberCount, ensureSubscribers } from '../../lib/newsletter';
+const e = env(Astro.locals);
+const db = e.DB;
+const site = e.SITE_URL.replace(/\/$/, '');
+await ensureSubscribers(db);
+const subs = await subscriberCount(db);
+const { results: recent } = await db.prepare(`SELECT email, city_slug, source, created_at FROM subscribers ORDER BY id DESC LIMIT 15`).all<any>();
+const badge = await db.prepare(`SELECT (SELECT COUNT(*) FROM businesses WHERE claimed = 1 AND owner_email IS NOT NULL) AS owners, (SELECT COUNT(*) FROM import_state WHERE key LIKE 'badge_sent:%') AS sent`).first<any>();
+const lastMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+const msg = Astro.url.searchParams.get('msg');
+---
+<Base title="Growth" noindex>
+  <div class="wrap stack-lg" style="max-width:900px">
+    <header class="stack">
+      <p class="label"><a href="/admin">Admin</a> / Growth</p>
+      <h1>Growth</h1>
+      {msg && <p class="notice notice-ok">{msg}</p>}
+    </header>
+    <section class="panel stack">
+      <h2>This Week in Broward email</h2>
+      <p><b>{subs.toLocaleString()}</b> subscribers. Each signup also goes to HighLevel with the tag <code>weekly-newsletter</code>.</p>
+      <p class="small">HighLevel RSS email feed: <code>{site}/feeds/weekly.xml</code> · Web version: <a href="/weekly">/weekly</a></p>
+      {recent.length > 0 && <details><summary>Latest signups</summary><ul class="small">{recent.map((r) => <li>{r.email} · {r.city_slug ?? 'all'} · {r.source} · {r.created_at}</li>)}</ul></details>}
+    </section>
+    <section class="panel stack">
+      <h2>Social posts</h2>
+      <p class="small">HighLevel Social Planner RSS feed: <code>{site}/feeds/social.xml</code>. Weekly posts per city: what's happening and the restaurant inspection roundup, each linking back to the city page.</p>
+    </section>
+    <section class="panel stack">
+      <h2>Backlinks</h2>
+      <p class="small">Verified owners: {badge?.owners ?? 0}. Badge emails sent: {badge?.sent ?? 0}. New owners get the badge in their welcome email automatically.</p>
+      <form method="post" action="/api/admin/action"><input type="hidden" name="action" value="badge_send_all" /><button class="btn btn-sm">Email the badge to owners who haven't had it</button></form>
+      <p class="small">Monthly report for reporters: <a href={`/inspections/${lastMonth}`}>/inspections/{lastMonth}</a> · <a href="/press">Press page</a></p>
+    </section>
+    <section class="panel stack">
+      <h2>Harper Growth Systems</h2>
+      <p class="small"><a href="/admin/hgs">Website prospects from Broward listings →</a></p>
+    </section>
+  </div>
+</Base>

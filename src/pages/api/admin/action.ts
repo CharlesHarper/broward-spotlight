@@ -59,6 +59,18 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
     case 'lead_done':
       await db.prepare(`UPDATE leads SET status = 'done' WHERE id = ?`).bind(id).run();
       return back('Marked handled.');
+    case 'badge_send_all': {
+      // Emails each verified owner their "Featured on Broward Spotlight" badge once.
+      const { results } = await db.prepare(`SELECT b.id, b.name, b.slug, b.owner_email, b.owner_token FROM businesses b WHERE b.claimed = 1 AND b.owner_email IS NOT NULL AND b.owner_token IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM import_state s WHERE s.key = 'badge_sent:' || b.id) LIMIT 200`).all<{ id: number; name: string; slug: string; owner_email: string; owner_token: string }>();
+      const site = (p: string) => new URL(p, e.SITE_URL).toString();
+      for (const b of results) {
+        await ghl(e, 'badge_offer', { email: b.owner_email, business_name: b.name, business_url: site(`/business/${b.slug}`), owner_url: site(`/owner/${b.owner_token}`),
+          badge_img: site('/badge-verified.png'), badge_page: site(`/owner/${b.owner_token}#badge`), tags: ['spotlight-owner'] });
+        await db.prepare(`INSERT INTO import_state (key, value) VALUES (?, datetime('now')) ON CONFLICT(key) DO NOTHING`).bind(`badge_sent:${b.id}`).run();
+      }
+      return redirect(`/admin/growth?msg=${encodeURIComponent(results.length ? `Badge email sent to ${results.length} owner${results.length === 1 ? '' : 's'}.` : 'Every verified owner already has the badge email.')}`, 303);
+    }
     case 'owner_link': {
       const b = await db.prepare(`SELECT owner_email FROM businesses WHERE id = ?`).bind(id).first<{ owner_email: string | null }>();
       if (!b?.owner_email) return redirect(`/admin/business?id=${id}`, 303);

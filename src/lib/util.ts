@@ -99,7 +99,7 @@ export async function grantOwnership(e: Env, businessId: number, email: string, 
     .bind(t, email, businessId).first<{ name: string; slug: string; contact_email: string | null }>();
   if (!b) return null;
   const site = (p: string) => new URL(p, e.SITE_URL).toString();
-  await ghl(e, 'owner_link', { email, name: name ?? '', business_name: b.name, owner_url: site(`/owner/${t}`), business_url: site(`/business/${b.slug}`), tags: ['spotlight-owner'] });
+  await ghl(e, 'owner_link', { email, name: name ?? '', business_name: b.name, owner_url: site(`/owner/${t}`), business_url: site(`/business/${b.slug}`), badge_img: site('/badge-verified.png'), badge_page: site(`/owner/${t}#badge`), tags: ['spotlight-owner'] });
   if (b.contact_email && b.contact_email.toLowerCase() !== email.toLowerCase()) await stopInviteReminders(e, businessId);
   return t;
 }

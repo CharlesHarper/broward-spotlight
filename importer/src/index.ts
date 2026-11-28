@@ -21,6 +21,7 @@ interface Env {
 }
 
 import { refreshCityFeeds, refreshStationNews } from '../../src/lib/citynews';
+import { hgsCheckBatch } from '../../src/lib/hgs';
 
 const BATCH = 80;
 const UA = 'BrowardSpotlightImporter/1.0 (+https://browardspotlight.com/how-it-works)';
@@ -254,6 +255,12 @@ async function routine(env: Env) {
     const r = await refreshStationNews(env.DB);
     if (r.read) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('station-news', ?, datetime('now'), ?, ?, ?)`).bind(started1, r.read, r.kept, r.note).run();
   } catch (e) { console.log('station news failed', String(e)); }
+  // Harper Growth Systems: check a few listing websites for problems a better site would fix.
+  try {
+    const started2 = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const r = await hgsCheckBatch(env.DB, 10);
+    if (r.read) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('site-checks', ?, datetime('now'), ?, ?, ?)`).bind(started2, r.read, r.kept, r.note).run();
+  } catch (e) { console.log('site checks failed', String(e)); }
   const county = await countySlice(env);
   if (!(county as { skipped?: boolean }).skipped) return county;
   const started = new Date().toISOString().replace('T', ' ').slice(0, 19);

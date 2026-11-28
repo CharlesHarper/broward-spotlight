@@ -9,6 +9,7 @@ export const POST: APIRoute = async ({ request, locals, redirect }) => {
   if (!name || !bn || !isEmail(email) || !interest) return new Response('Please add your name, business, email and what you are interested in.', { status: 400 });
   await e.DB.prepare(`INSERT INTO leads (kind, name, email, phone, business_name, payload) VALUES ('advertise', ?, ?, ?, ?, ?)`)
     .bind(name, email, phone, bn, JSON.stringify({ interest, target })).run();
-  await ghl(e, 'advertise_inquiry', { name, email, phone, business_name: bn, interest, target, tags: ['spotlight-advertiser'] });
-  return redirect('/advertise?sent=1#inquire', 303);
+  const press = interest.startsWith('Press');
+  await ghl(e, press ? 'press_inquiry' : 'advertise_inquiry', { name, email, phone, business_name: bn, interest, target, tags: [press ? 'spotlight-press' : 'spotlight-advertiser'] });
+  return redirect(press ? '/press?sent=1' : '/advertise?sent=1#inquire', 303);
 };

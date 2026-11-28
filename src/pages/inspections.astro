@@ -36,6 +36,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=600');
       <div class="stat"><b>{(r.tones.warn ?? 0).toLocaleString()}</b><span>Warnings and follow-ups</span></div>
       <div class="stat"><b>{(r.tones.alert ?? 0).toLocaleString()}</b><span>Ordered closed</span></div>
     </div>
+    <p class="small"><a href={`/inspections/${new Date().toISOString().slice(0, 7)}`}>This month's full report</a> · <a href={`/inspections/${new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 1, 1)).toISOString().slice(0, 7)}`}>Last month</a> · <a href="/press">For reporters</a></p>
     <details class="panel" id="what-results-mean">
       <summary>What the results mean</summary>
       <dl class="legend">
