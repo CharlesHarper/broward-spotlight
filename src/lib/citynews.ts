@@ -282,3 +282,59 @@ export function eventDay(s: string | null) {
   const d = new Date(s.slice(0, 10) + 'T12:00:00Z');
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
+
+/**
+ * Broward headlines from local TV newsrooms. We keep only the headline, a link to the station's story, the station's name
+ * and the date: no story text, no photos. Each station's robots.txt allows its RSS feed.
+ * Violent-crime and death stories are left out; this is a business and community site.
+ */
+const STATIONS: { source: string; url: string; browardOnly: boolean }[] = [
+  { source: 'WSVN 7News', url: 'https://wsvn.com/news/local/broward/feed/', browardOnly: true },
+  { source: 'Local 10 News', url: 'https://www.local10.com/arc/outboundfeeds/rss/', browardOnly: false },
+  { source: 'NBC 6 South Florida', url: 'https://www.nbcmiami.com/?rss=y&most_recent=y', browardOnly: false },
+];
+const GRIM = /\b(shot|shoot|shooting|gunfire|gunman|killed|kill|murder|homicide|stabb|dead|death|dies|died|fatal|body|bodies|arrest|charged|sentenced|suspect|robbery|assault|sex|abuse|overdose|drown|missing|manhunt|carjack|police chase|crash)/i;
+// Longest names first so "North Lauderdale" wins over "Lauderdale". Words that are also ordinary words need a place cue.
+const PLACES: [RegExp, string][] = Object.entries({
+  'lauderdale-by-the-sea': 'Lauderdale[- ]By[- ]The[- ]Sea', 'north-lauderdale': 'North Lauderdale', 'lauderdale-lakes': 'Lauderdale Lakes',
+  'fort-lauderdale': '(?:Fort|Ft\\.?) Lauderdale', 'hallandale-beach': 'Hallandale', 'deerfield-beach': 'Deerfield Beach', 'pompano-beach': 'Pompano',
+  'dania-beach': 'Dania', 'hillsboro-beach': 'Hillsboro Beach', 'lighthouse-point': 'Lighthouse Point', 'pembroke-pines': 'Pembroke Pines',
+  'pembroke-park': 'Pembroke Park', 'coconut-creek': 'Coconut Creek', 'coral-springs': 'Coral Springs', 'cooper-city': 'Cooper City',
+  'oakland-park': 'Oakland Park', 'wilton-manors': 'Wilton Manors', 'southwest-ranches': 'Southwest Ranches', 'sea-ranch-lakes': 'Sea Ranch Lakes',
+  'west-park': 'West Park', lauderhill: 'Lauderhill', tamarac: 'Tamarac', davie: 'Davie', miramar: 'Miramar',
+  margate: '(?:in|of|near) Margate|Margate (?:police|city|fire|commission)', parkland: '(?:in|of|near) Parkland|Parkland (?:police|city|commission)|Parkland\\b(?=.*Broward)',
+  weston: '(?:in|of|near) Weston|Weston (?:police|city|commission|neighborhood)', plantation: '(?:in|of|near) Plantation|Plantation (?:police|city|fire|commission)',
+  sunrise: '(?:in|of|near) Sunrise\\b|Sunrise (?:police|city|fire|commission)|Amerant Bank Arena', hollywood: '(?:in|of|near) Hollywood\\b|Hollywood (?:Beach|police|city|fire|commission)',
+}).map(([slug, re]) => [new RegExp(`\\b(?:${re})`, 'i'), slug]);
+export function placeOf(text: string): string | null {
+  for (const [re, slug] of PLACES) if (re.test(text)) return slug;
+  return /\bBroward\b/i.test(text) ? 'broward' : null;
+}
+
+export async function refreshStationNews(db: D1Database) {
+  const last = await db.prepare(`SELECT value FROM import_state WHERE key = 'station_news_at'`).first<{ value: string }>().catch(() => null);
+  if (last && Date.now() - Date.parse(last.value) < 2 * 3600e3) return { read: 0, kept: 0, note: 'not due' };
+  let read = 0;
+  const stmts: D1PreparedStatement[] = [];
+  const notes: string[] = [];
+  for (const st of STATIONS) {
+    const items = parseRss((await get(st.url)) ?? '');
+    read += items.length;
+    let kept = 0;
+    for (const i of items) {
+      if (GRIM.test(i.title)) continue;
+      const slug = placeOf(i.title) ?? (st.browardOnly ? placeOf(i.description) ?? 'broward' : null);
+      if (!slug) continue;
+      const pub = i.pubDate && !Number.isNaN(Date.parse(i.pubDate)) ? new Date(i.pubDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+      stmts.push(db.prepare(`INSERT INTO city_items (city_slug, kind, title, url, source, published_at) VALUES (?, 'news', ?, ?, ?, ?)
+        ON CONFLICT(kind, url) DO UPDATE SET title = excluded.title, fetched_at = datetime('now')`).bind(slug, i.title.slice(0, 300), i.link, st.source, pub));
+      kept++;
+    }
+    notes.push(`${st.source}:${kept}/${items.length}`);
+  }
+  // Station headlines age quickly; keep 45 days of them.
+  stmts.push(db.prepare(`DELETE FROM city_items WHERE kind = 'news' AND source IN (${STATIONS.map(() => '?').join(',')}) AND published_at < datetime('now', '-45 days')`).bind(...STATIONS.map((s) => s.source)));
+  stmts.push(db.prepare(`INSERT INTO import_state (key, value) VALUES ('station_news_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(new Date().toISOString()));
+  await db.batch(stmts);
+  return { read, kept: stmts.length - 2, note: notes.join(' ') };
+}

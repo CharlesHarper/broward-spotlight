@@ -101,7 +101,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
         <div class="section-head"><h2>This week in Broward</h2><a href="/news">All news &amp; events</a></div>
         <div class="split-2">
           {events.length > 0 && <div class="panel stack"><h3>Coming up</h3><CityItems items={events} kind="event" showCity /><a class="small" href="/news">More events</a></div>}
-          {news.length > 0 && <div class="panel stack"><h3>City news</h3><CityItems items={news} kind="news" /><a class="small" href="/news?show=news">More news</a></div>}
+          {news.length > 0 && <div class="panel stack"><h3>City news</h3><CityItems items={news} kind="news" thumbs /><a class="small" href="/news?show=news">More news</a></div>}
         </div>
       </section>
     )}

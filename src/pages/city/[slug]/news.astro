@@ -42,7 +42,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=900');
     <header class="stack">
       <p class="label"><a href="/cities">Cities</a> / <a href={`/city/${slug}`}>{city.name}</a></p>
       <h1>{KIND === 'event' ? `Events in ${city.name}` : `${city.name} news`}</h1>
-      <p class="muted">{KIND === 'event' ? 'Upcoming events, public meetings and closures' : 'Announcements and updates'} from the official {city.name} website, checked every day. Tap any item for full details on the city's site.</p>
+      <p class="muted">{KIND === 'event' ? `Upcoming events, public meetings and closures from the official ${city.name} website` : `Announcements from the official ${city.name} website and local TV news headlines`}, checked every day. Tap any item to read it at its source.</p>
       <p class="small"><a href={`/city/${slug}/${KIND === 'event' ? 'news' : 'events'}`}>{KIND === 'event' ? `${city.name} news` : `Events in ${city.name}`}</a> · <a href={`/city/${slug}`}>Businesses in {city.name}</a></p>
     </header>
     {items.length ? <section class="panel"><CityItems items={items} kind={KIND} full /></section>

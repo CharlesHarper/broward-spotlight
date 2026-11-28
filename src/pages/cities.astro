@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import { cityCounts } from '../lib/db';
 import { env } from '../lib/util';
+import { cityPhotoUrl, CITY_INFO } from '../data/cities';
 const cities = await cityCounts(env(Astro.locals).DB);
 Astro.response.headers.set('Cache-Control', 'public, max-age=600');
 ---
@@ -10,11 +11,13 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=600');
     <header class="stack"><h1>Broward's 31 cities</h1><p class="muted">Pick a city to see its businesses, recent state inspections and local numbers.</p></header>
     <div class="grid">
       {cities.map((c) => (
-        <a class="card" href={`/city/${c.slug}`}>
+        <a class="card city-card" href={`/city/${c.slug}`}>
+          {cityPhotoUrl(c.slug) ? <img class="card-photo" src={cityPhotoUrl(c.slug)} alt={CITY_INFO[c.slug]?.photo?.alt ?? c.name} width="640" height="360" loading="lazy" decoding="async" /> : <span class="card-photo card-photo-empty" aria-hidden="true">{c.name}</span>}
           <h3>{c.name}</h3>
-          <p class="meta">{c.n > 0 ? `${c.n.toLocaleString()} listings` : 'Listings coming soon'}</p>
+          <p class="meta">{[c.n > 0 ? `${c.n.toLocaleString()} listings` : 'Listings coming soon', CITY_INFO[c.slug]?.incorporated ? `since ${CITY_INFO[c.slug].incorporated}` : null].filter(Boolean).join(' · ')}</p>
         </a>
       ))}
     </div>
+    <p class="small muted">City photos from Wikimedia Commons; each city page credits its photographer.</p>
   </div>
 </Base>

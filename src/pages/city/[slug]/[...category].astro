@@ -10,6 +10,7 @@ import { CATEGORIES, categoryLabel } from '../../../lib/shared';
 import { env, fmtDate } from '../../../lib/util';
 import CityItems from '../../../components/CityItems.astro';
 import { cityItems } from '../../../lib/citynews';
+import { CITY_INFO, cityPhotoUrl } from '../../../data/cities';
 
 const db = env(Astro.locals).DB;
 const slug = Astro.params.slug!;
@@ -47,6 +48,8 @@ const catFacts = catInfo && catStats ? [
   catStats.claimed ? `${catStats.claimed} ${catStats.claimed === 1 ? 'is' : 'are'} verified by the owner.` : '',
   `Covers: ${catInfo.blurb.charAt(0).toLowerCase()}${catInfo.blurb.slice(1)}`,
 ].filter(Boolean).join(' ') : '';
+const info = CITY_INFO[slug] ?? null;
+const photo = cityPhotoUrl(slug);
 const site = env(Astro.locals).SITE_URL;
 const selfPath = `/city/${slug}${category ? `/${category}` : ''}`;
 const jsonld = {
@@ -69,8 +72,14 @@ const desc = category
 const indexable = page === 1 && (category ? list.total >= 5 : stats.listings > 0);
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
-<Base title={title} description={desc} search city={slug} noindex={!indexable} canonical={`${site}${selfPath}`} jsonld={jsonld}>
+<Base title={title} description={desc} image={photo ? `${site.replace(/\/$/, '')}${photo}` : null} search city={slug} noindex={!indexable} canonical={`${site}${selfPath}`} jsonld={jsonld}>
   <div class="wrap stack-lg">
+    {photo && info?.photo && (
+      <figure class="city-hero">
+        <img src={photo} alt={info.photo.alt} width="1600" height="900" fetchpriority={category ? 'auto' : 'high'} decoding="async" />
+        <figcaption>Photo: {info.photo.credit}, <a href={`https://commons.wikimedia.org/wiki/File:${encodeURIComponent(info.photo.file.replace(/ /g, '_'))}`} target="_blank" rel="noopener">{info.photo.license}</a>, via Wikimedia Commons</figcaption>
+      </figure>
+    )}
     <header class="stack">
       <p class="label"><a href="/cities">Cities</a> / {category ? <a href={`/city/${slug}`}>{city.name}</a> : 'Broward County'}</p>
       <h1>{category ? `${categoryLabel(category)} in ${city.name}` : city.name}</h1>
@@ -127,6 +136,15 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 
     <Ad ad={ad} />
 
+    {!category && info && info.history.length > 0 && (
+      <section class="panel stack history" id="history">
+        <h2>History of {city.name}</h2>
+        {info.incorporated && <p class="label">Incorporated {info.incorporated}</p>}
+        {info.history.map((p) => <p>{p}</p>)}
+        <p class="small muted">Sources: <a href={info.wiki} target="_blank" rel="noopener">Wikipedia</a>{city.website && <>, <a href={city.website} target="_blank" rel="noopener">official {city.name} website</a></>}. Written by Broward Spotlight.</p>
+      </section>
+    )}
+
     {stats.recent.length > 0 && (
       <section>
         <div class="section-head"><h2>Latest inspections in {city.name}</h2><a href="/inspections">Countywide report</a></div>
@@ -138,7 +156,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
                 <tr>
                   <td class="record">{fmtDate(i.date)}</td>
                   <td><a href={`/business/${i.slug}`}>{i.name}</a></td>
-                  <td><Status tone={i.tone} text={i.disposition} /></td>
+                  <td><Status tone={i.tone} text={i.disposition} plain /></td>
                 </tr>
               ))}
             </tbody>

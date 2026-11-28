@@ -2,8 +2,9 @@
 import type { CityItem } from '../lib/citynews';
 import { eventDay } from '../lib/citynews';
 import { fmtDate } from '../lib/util';
-interface Props { items: (CityItem & { city_name?: string | null })[]; kind: 'news' | 'event'; full?: boolean; showCity?: boolean }
-const { items, kind, full = false, showCity = false } = Astro.props;
+import { cityPhotoUrl } from '../data/cities';
+interface Props { items: (CityItem & { city_name?: string | null })[]; kind: 'news' | 'event'; full?: boolean; showCity?: boolean; thumbs?: boolean }
+const { items, kind, full = false, showCity = false, thumbs = false } = Astro.props;
 const place = (s: string | null) => (s ?? '').split('\n').map((x) => x.trim()).filter(Boolean).join(', ');
 ---
 {kind === 'event' ? (
@@ -19,13 +20,18 @@ const place = (s: string | null) => (s ?? '').split('\n').map((x) => x.trim()).f
     ))}
   </ul>
 ) : (
-  <ul class="city-news">
-    {items.map((i) => (
+  <ul class:list={['city-news', { 'with-thumbs': thumbs }]}>
+    {items.map((i) => {
+      const img = thumbs ? cityPhotoUrl(i.city_slug) : null;
+      return (
       <li>
-        <a href={i.url} target="_blank" rel="noopener">{i.title}</a>
-        <small>{[i.source, i.published_at ? fmtDate(i.published_at.slice(0, 10)) : null].filter(Boolean).join(' · ')}</small>
-        {full && i.summary && <p>{i.summary}</p>}
+        {thumbs && (img ? <img class="city-thumb" src={img} alt="" width="48" height="48" loading="lazy" decoding="async" /> : <span class="city-thumb city-thumb-empty" aria-hidden="true">{(i.city_name ?? i.source ?? '?').replace(/^(City|Town|Village) of /, '').slice(0, 1)}</span>)}
+        <span class="news-body">
+          <a href={i.url} target="_blank" rel="noopener">{i.title}</a>
+          <small>{[i.source, i.published_at ? fmtDate(i.published_at.slice(0, 10)) : null].filter(Boolean).join(' · ')}</small>
+          {full && i.summary && <p>{i.summary}</p>}
+        </span>
       </li>
-    ))}
+    ); })}
   </ul>
 )}

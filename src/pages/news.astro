@@ -18,19 +18,19 @@ const [events, news, cities] = await Promise.all([
 ]);
 const where = city ? CITY_NAMES[city] : 'Broward County';
 const title = `${where} news and events this week`;
-const description = `Upcoming events, public meetings and city news from ${city ? `the official ${CITY_NAMES[city]} website` : 'every Broward city website'}, in one place. Updated every day.`;
+const description = `Upcoming events, public meetings, city announcements and local TV news headlines for ${city ? CITY_NAMES[city] : 'every Broward city'}, in one place. Updated every day.`;
 const link = (s: string, c: string | null) => `/news?show=${s}${c ? `&city=${c}` : ''}`;
 Astro.response.headers.set('Cache-Control', 'public, max-age=900');
 ---
 <Base title={title} description={description} canonical={`${site}/news`} noindex={!!city || show === 'news'} search>
   <div class="wrap stack-lg" style="max-width:900px">
     <header class="stack">
-      <p class="label">Updated daily from official city websites</p>
+      <p class="label">Updated daily from city websites and local newsrooms</p>
       <h1>{where} news &amp; events</h1>
-      <p class="muted" style="max-width:65ch">What's coming up and what's new in {where}: festivals, markets, public meetings, road and park closures, and city announcements. Tap any item for full details on the city's own site.</p>
+      <p class="muted" style="max-width:65ch">What's coming up and what's new in {where}: festivals, markets, public meetings, road and park closures, and city announcements. Tap any item to read the full story at its source.</p>
       <nav class="chips" aria-label="Show">
         <a class="chip" href={link('events', city)} aria-current={show === 'events' ? 'page' : undefined}>Upcoming events</a>
-        <a class="chip" href={link('news', city)} aria-current={show === 'news' ? 'page' : undefined}>City news</a>
+        <a class="chip" href={link('news', city)} aria-current={show === 'news' ? 'page' : undefined}>Local news</a>
       </nav>
       {cities.length > 0 && (
         <nav class="chips" aria-label="City">
@@ -45,10 +45,10 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=900');
       events.length ? <section class="panel"><CityItems items={events} kind="event" showCity={!city} /></section>
         : <p class="notice">No upcoming events posted{city ? ` for ${CITY_NAMES[city]}` : ''} right now. We check every day.</p>
     ) : (
-      news.length ? <section class="panel"><CityItems items={news} kind="news" full /></section>
+      news.length ? <section class="panel"><CityItems items={news} kind="news" full thumbs={!city} /></section>
         : <p class="notice">No city news posted{city ? ` for ${CITY_NAMES[city]}` : ''} right now. We check every day.</p>
     )}
     {city && <p class="small"><a href={`/city/${city}`}>Businesses in {CITY_NAMES[city]}</a> · <a href={`/city/${city}/events`}>{CITY_NAMES[city]} events page</a> · <a href={`/city/${city}/news`}>{CITY_NAMES[city]} news page</a></p>}
-    <p class="small muted">Broward Spotlight is independent and not affiliated with any city. Items come from each city's public news and calendar feeds.</p>
+    <p class="small muted">Broward Spotlight is independent and not affiliated with any city. Items come from each city's public news and calendar feeds and from the headline feeds of WSVN 7News, Local 10 and NBC 6. Headlines link to the original story.</p>
   </div>
 </Base>

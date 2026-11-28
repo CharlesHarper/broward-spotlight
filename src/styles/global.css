@@ -361,3 +361,19 @@ details.panel[open] > summary::after { content: "–"; }
 .legend > div:last-child { border-bottom: 0; padding-bottom: 0; }
 .legend dt { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .legend dd { margin: 0; color: var(--ink-muted); font-size: 14px; }
+
+/* City photo banner */
+.city-hero { margin: 0; position: relative; border-radius: 16px; overflow: hidden; background: var(--line); aspect-ratio: 16 / 6; }
+.city-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.city-hero figcaption { position: absolute; right: 0; bottom: 0; padding: 4px 10px; font-size: 11px; color: #fff; background: rgba(0, 0, 0, .55); border-top-left-radius: 8px; }
+.city-hero figcaption a { color: #fff; }
+@media (max-width: 640px) { .city-hero { aspect-ratio: 16 / 9; border-radius: 12px; } }
+.history p { max-width: 70ch; margin: 0; }
+.city-thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; }
+.city-news.with-thumbs li { display: flex; gap: 12px; align-items: flex-start; }
+.city-news .news-body { display: grid; gap: 2px; min-width: 0; }
+.city-thumb { width: 48px; height: 48px; }
+.city-thumb-empty { display: grid; place-items: center; background: var(--line); color: var(--ink-muted); font-weight: 700; }
+.city-card { padding-top: 0; overflow: hidden; }
+.card-photo { display: block; width: calc(100% + 2 * var(--card-pad, 16px)); max-width: none; margin: 0 calc(-1 * var(--card-pad, 16px)) 10px; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line); }
+.card-photo-empty { display: grid; place-items: center; color: var(--ink-muted); font-weight: 700; font-size: 18px; background: linear-gradient(135deg, var(--line), transparent); }

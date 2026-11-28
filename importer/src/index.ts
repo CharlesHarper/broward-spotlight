@@ -20,7 +20,7 @@ interface Env {
   INVITES_PER_DAY?: string;
 }
 
-import { refreshCityFeeds } from '../../src/lib/citynews';
+import { refreshCityFeeds, refreshStationNews } from '../../src/lib/citynews';
 
 const BATCH = 80;
 const UA = 'BrowardSpotlightImporter/1.0 (+https://browardspotlight.com/how-it-works)';
@@ -248,6 +248,12 @@ async function routine(env: Env) {
     const r = await refreshCityFeeds(env.DB);
     if (r.read) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('city-feeds', ?, datetime('now'), ?, ?, ?)`).bind(started0, r.read, r.kept, r.note).run();
   } catch (e) { console.log('city feeds failed', String(e)); }
+  // Broward headlines from local TV stations, every two hours.
+  try {
+    const started1 = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const r = await refreshStationNews(env.DB);
+    if (r.read) await env.DB.prepare(`INSERT INTO import_runs (kind, started_at, finished_at, rows_read, rows_kept, note) VALUES ('station-news', ?, datetime('now'), ?, ?, ?)`).bind(started1, r.read, r.kept, r.note).run();
+  } catch (e) { console.log('station news failed', String(e)); }
   const county = await countySlice(env);
   if (!(county as { skipped?: boolean }).skipped) return county;
   const started = new Date().toISOString().replace('T', ' ').slice(0, 19);
