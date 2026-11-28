@@ -263,4 +263,4 @@ export const CITY_INFO: Record<string, CityInfo> = {
 };
 
 /** Where the cached photo is served from. */
-export const cityPhotoUrl = (slug: string) => (CITY_INFO[slug]?.photo ? `/img/city/${slug}.jpg` : null);
+export const cityPhotoUrl = (slug: string, w = 1280) => (CITY_INFO[slug]?.photo ? `/img/city/${slug}.jpg${w === 1280 ? '' : `?w=${w}`}` : null);

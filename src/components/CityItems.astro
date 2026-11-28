@@ -22,7 +22,7 @@ const place = (s: string | null) => (s ?? '').split('\n').map((x) => x.trim()).f
 ) : (
   <ul class:list={['city-news', { 'with-thumbs': thumbs }]}>
     {items.map((i) => {
-      const img = thumbs ? cityPhotoUrl(i.city_slug) : null;
+      const img = thumbs ? cityPhotoUrl(i.city_slug, 320) : null;
       return (
       <li>
         {thumbs && (img ? <img class="city-thumb" src={img} alt="" width="48" height="48" loading="lazy" decoding="async" /> : <span class="city-thumb city-thumb-empty" aria-hidden="true">{(i.city_name ?? i.source ?? '?').replace(/^(City|Town|Village) of /, '').slice(0, 1)}</span>)}

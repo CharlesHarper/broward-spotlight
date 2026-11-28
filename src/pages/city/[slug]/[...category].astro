@@ -76,7 +76,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
   <div class="wrap stack-lg">
     {photo && info?.photo && (
       <figure class="city-hero">
-        <img src={photo} alt={info.photo.alt} width="1600" height="900" fetchpriority={category ? 'auto' : 'high'} decoding="async" />
+        <img src={photo} srcset={`${cityPhotoUrl(slug, 640)} 640w, ${cityPhotoUrl(slug, 960)} 960w, ${photo} 1280w`} sizes="(max-width: 1200px) 100vw, 1200px" alt={info.photo.alt} width="1280" height="720" fetchpriority={category ? 'auto' : 'high'} decoding="async" />
         <figcaption>Photo: {info.photo.credit}, <a href={`https://commons.wikimedia.org/wiki/File:${encodeURIComponent(info.photo.file.replace(/ /g, '_'))}`} target="_blank" rel="noopener">{info.photo.license}</a>, via Wikimedia Commons</figcaption>
       </figure>
     )}
