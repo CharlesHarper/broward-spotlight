@@ -75,7 +75,7 @@ if (d.reviewStats.n > 0) faq.push({ q: `What do customers say about ${b.name}?`,
 const clip = (t: string, n = 160) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
 // Search snippet: lead with what searchers can't get elsewhere, the latest state inspection in plain words.
 const snippet = latest
-  ? `${b.name}, ${cityName ?? 'Broward'}: last state inspection ${fmtDate(latest.date)}, ${(plainDisposition(latest.disposition)?.short ?? latest.disposition).toLowerCase()}${latest.high_priority ? ` (${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'})` : ''}. ${d.reviewStats.n ? `${d.reviewStats.n} customer ${d.reviewStats.n === 1 ? 'review' : 'reviews'}, ` : ''}full inspection history, hours and map.`
+  ? `${b.name}, ${cityName ?? 'Broward'}: last state inspection ${fmtDate(latest.date)}, ${(plainDisposition(latest.disposition)?.short ?? latest.disposition).toLowerCase()}${latest.high_priority ? ` (${latest.high_priority} high-priority ${latest.high_priority === 1 ? 'violation' : 'violations'})` : ''}. ${d.reviewStats.n ? `${d.reviewStats.n} customer ${d.reviewStats.n === 1 ? 'review' : 'reviews'}, full` : 'Full'} inspection history, hours and map.`
   : summary;
 const desc = clip(b.claimed && b.description ? `${b.name}, ${cityName}, FL. ${b.description.replace(/\s+/g, ' ').trim()}` : snippet);
 const thin = isThin(b, d.reviewStats.n, d.mentions.length);
